@@ -47,6 +47,7 @@ func Baseline(s model.Snapshot) model.Memory {
 	for _, c := range s.Comments {
 		m.SeenComments[c.ID] = true
 	}
+	baselineCI(&m, s)
 	return m
 }
 
@@ -59,6 +60,7 @@ func Step(m model.Memory, s model.Snapshot) Result {
 	next := m.Clone()
 	var events []model.Event
 	events = append(events, stepLifecycle(&next, s)...)
+	events = append(events, stepCI(&next, s)...)
 	// activity: reviews and comments (plan 01-06)
 	sortEvents(events)
 	return Result{Events: events, Memory: next}
