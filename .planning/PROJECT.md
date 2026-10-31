@@ -6,7 +6,7 @@ A local daemon + CLI that watches GitHub pull requests on behalf of many coding 
 
 ## Core Value
 
-An agent runs `pr-relay sub owner/repo#123` once, returns immediately, and later receives a relevant PR update (CI failure, review verdict, comment, conflict, merge) in its pane, without spending any tokens on polling. One poller serves every agent on the machine.
+An agent runs `pr-relay sub https://github.com/owner/repo/pull/123` once, returns immediately, and later receives a relevant PR update (CI failure, review verdict, comment, conflict, merge) in its pane, without spending any tokens on polling. One poller serves every agent on the machine.
 
 ## Requirements
 
@@ -17,7 +17,7 @@ An agent runs `pr-relay sub owner/repo#123` once, returns immediately, and later
 ### Active
 
 - [ ] Single local daemon per machine with one GitHub poller; subscriptions deduplicated per PR (N agents on one PR = one poll)
-- [ ] `pr-relay sub owner/repo#N [--events ci,reviews,comments,merge,...] [--pane ID]` returns immediately; pane auto-detected from herdr environment
+- [ ] `pr-relay sub <PR link> [--events ...] [--pane ID]` returns immediately; the pane is auto-detected from the herdr environment; only single-PR links are accepted (no whole-repo subscriptions)
 - [ ] `pr-relay unsub` and `pr-relay ls` (list subscriptions)
 - [ ] CLI auto-starts the daemon if it isn't running
 - [ ] Events: CI check status changes (failing check names + links); reviews submitted (approved / changes requested); new review comments and issue comments; merge-state / conflict changes; new commits pushed; PR merged / closed
@@ -40,6 +40,7 @@ An agent runs `pr-relay sub owner/repo#123` once, returns immediately, and later
 - Webhooks / `gh webhook forward` — deferred to v2; polling with ETags + adaptive intervals is enough for v1 and works without repo admin rights
 - Verbose/detailed message payloads (comment bodies, log tails) — v1 messages are terse with links; agents fetch details themselves
 - Per-agent identity tracking (distinguishing agent vs human actions under the same gh user) — too complex for v1; exclusion is by gh user
+- Whole-repo / org subscriptions — subscriptions are per PR, by PR link only
 - Windows support — herdr targets macOS/Linux
 - Non-herdr delivery targets (tmux, raw terminals, MCP) — agent-agnostic within herdr is the scope
 - Building on prior art (prhub, claude-gh-monitor, pr-sentinel, github-webhook-mcp) — none push into herdr panes; reviewed, not reused
