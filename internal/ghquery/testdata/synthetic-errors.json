@@ -1,0 +1,14 @@
+{
+  "data": {
+    "rateLimit": {"cost": 1, "limit": 5000, "nodeCount": 1, "remaining": 4999, "resetAt": "2026-10-31T12:00:00Z", "used": 1},
+    "repository": {"pullRequest": null}
+  },
+  "errors": [
+    {
+      "type": "NOT_FOUND",
+      "path": ["repository", "pullRequest"],
+      "locations": [{"line": 4, "column": 5}],
+      "message": "Could not resolve to a PullRequest with the number of 999."
+    }
+  ]
+}

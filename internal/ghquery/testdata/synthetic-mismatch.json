@@ -1,0 +1,39 @@
+{
+  "data": {
+    "rateLimit": {"cost": 1, "limit": 5000, "nodeCount": 100, "remaining": 4900, "resetAt": "2026-10-31T12:00:00Z", "used": 100},
+    "repository": {
+      "pullRequest": {
+        "id": "PR_kwDOsynth8",
+        "number": 8,
+        "url": "https://github.com/synth-owner/synth-repo/pull/8",
+        "state": "OPEN",
+        "merged": false,
+        "closed": false,
+        "mergedBy": null,
+        "headRefOid": "newhead",
+        "baseRefOid": "base",
+        "mergeable": "UNKNOWN",
+        "commits": {"totalCount": 1, "nodes": [{"commit": {"oid": "newhead", "author": {"user": {"login": "alice"}}, "committer": {"user": {"login": "alice"}}}}]},
+        "statusCheckRollup": {
+          "commit": {"oid": "oldhead"},
+          "contexts": {
+            "totalCount": 1,
+            "pageInfo": {"hasNextPage": true, "endCursor": "x"},
+            "nodes": [
+              {
+                "__typename": "CheckRun",
+                "id": "CR_1", "databaseId": 1, "name": "build", "status": "COMPLETED", "conclusion": "FUTURE_THING",
+                "url": "https://github.com/synth-owner/synth-repo/runs/1", "detailsUrl": "https://github.com/synth-owner/synth-repo/runs/1",
+                "startedAt": null, "completedAt": null,
+                "checkSuite": {"app": {"slug": "github-actions"}, "workflowRun": {"runAttempt": 1, "workflow": {"name": "ci"}}}
+              }
+            ]
+          }
+        },
+        "reviews": {"totalCount": 0, "nodes": []},
+        "comments": {"totalCount": 0, "nodes": []},
+        "timelineItems": {"nodes": []}
+      }
+    }
+  }
+}
