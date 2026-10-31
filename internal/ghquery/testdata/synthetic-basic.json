@@ -1,0 +1,115 @@
+{
+  "data": {
+    "rateLimit": {
+      "cost": 1,
+      "limit": 5000,
+      "nodeCount": 312,
+      "remaining": 4987,
+      "resetAt": "2026-10-31T12:00:00Z",
+      "used": 13
+    },
+    "repository": {
+      "pullRequest": {
+        "id": "PR_kwDOsynth7",
+        "number": 7,
+        "url": "https://github.com/synth-owner/synth-repo/pull/7",
+        "state": "CLOSED",
+        "merged": false,
+        "closed": true,
+        "mergedBy": null,
+        "headRefOid": "head000000000000000000000000000000000001",
+        "baseRefOid": "base000000000000000000000000000000000001",
+        "mergeable": "MERGEABLE",
+        "commits": {
+          "totalCount": 3,
+          "nodes": [
+            {"commit": {"oid": "c1", "author": {"user": {"login": "alice"}}, "committer": {"user": {"login": "web-flow"}}}},
+            {"commit": {"oid": "c2", "author": {"user": null}, "committer": {"user": {"login": "bob"}}}},
+            {"commit": {"oid": "head000000000000000000000000000000000001", "author": {"user": null}, "committer": {"user": null}}}
+          ]
+        },
+        "statusCheckRollup": {
+          "commit": {"oid": "head000000000000000000000000000000000001"},
+          "contexts": {
+            "totalCount": 4,
+            "pageInfo": {"hasNextPage": true, "endCursor": "Y3Vyc29y"},
+            "nodes": [
+              {"__typename": "StatusContext"},
+              {
+                "__typename": "CheckRun",
+                "id": "CR_old", "databaseId": 10, "name": "build", "status": "COMPLETED", "conclusion": "FAILURE",
+                "url": "https://github.com/synth-owner/synth-repo/runs/10", "detailsUrl": "https://github.com/synth-owner/synth-repo/actions/runs/1/job/10",
+                "startedAt": "2026-10-31T10:00:00Z", "completedAt": "2026-10-31T10:01:00Z",
+                "checkSuite": {"app": {"slug": "github-actions"}, "workflowRun": {"runAttempt": 1, "workflow": {"name": "ci"}}}
+              },
+              {
+                "__typename": "CheckRun",
+                "id": "CR_lint", "databaseId": 15, "name": "lint", "status": "COMPLETED", "conclusion": "FUTURE_THING",
+                "url": "https://github.com/synth-owner/synth-repo/runs/15", "detailsUrl": "https://example.invalid/lint/15",
+                "startedAt": "2026-10-31T10:00:00Z", "completedAt": "2026-10-31T10:02:00Z",
+                "checkSuite": {"app": {"slug": "some-app"}, "workflowRun": null}
+              },
+              {
+                "__typename": "CheckRun",
+                "id": "CR_new", "databaseId": 20, "name": "build", "status": "COMPLETED", "conclusion": "SUCCESS",
+                "url": "https://github.com/synth-owner/synth-repo/runs/20", "detailsUrl": "https://github.com/synth-owner/synth-repo/actions/runs/1/job/20",
+                "startedAt": "2026-10-31T10:05:00Z", "completedAt": "2026-10-31T10:06:00Z",
+                "checkSuite": {"app": {"slug": "github-actions"}, "workflowRun": {"runAttempt": 2, "workflow": {"name": "ci"}}}
+              },
+              {
+                "__typename": "CheckRun",
+                "id": "CR_test", "databaseId": 21, "name": "test", "status": "IN_PROGRESS", "conclusion": null,
+                "url": "https://github.com/synth-owner/synth-repo/runs/21", "detailsUrl": "https://github.com/synth-owner/synth-repo/actions/runs/1/job/21",
+                "startedAt": "2026-10-31T10:05:00Z", "completedAt": null,
+                "checkSuite": {"app": {"slug": "github-actions"}, "workflowRun": {"runAttempt": 2, "workflow": {"name": "ci"}}}
+              }
+            ]
+          }
+        },
+        "reviews": {
+          "totalCount": 3,
+          "nodes": [
+            {
+              "id": "PRR_1", "state": "CHANGES_REQUESTED", "url": "https://github.com/synth-owner/synth-repo/pull/7#pullrequestreview-1",
+              "submittedAt": "2026-10-31T10:10:00Z", "body": "PRRELAY-BODY-SENTINEL",
+              "author": {"__typename": "User", "login": "alice"},
+              "comments": {
+                "totalCount": 2,
+                "nodes": [
+                  {"id": "PRRC_1", "url": "https://github.com/synth-owner/synth-repo/pull/7#discussion_r1", "path": "src/x.go", "replyTo": null, "author": {"__typename": "User", "login": "alice"}},
+                  {"id": "PRRC_2", "url": "https://github.com/synth-owner/synth-repo/pull/7#discussion_r2", "path": "src/x.go", "replyTo": {"id": "PRRC_0"}, "author": null}
+                ]
+              }
+            },
+            {
+              "id": "PRR_2", "state": "COMMENTED", "url": "https://github.com/synth-owner/synth-repo/pull/7#pullrequestreview-2",
+              "submittedAt": "2026-10-31T10:11:00Z", "body": "  \n\t ",
+              "author": null,
+              "comments": {"totalCount": 0, "nodes": []}
+            },
+            {
+              "id": "PRR_3", "state": "APPROVED", "url": "https://github.com/synth-owner/synth-repo/pull/7#pullrequestreview-3",
+              "submittedAt": "2026-10-31T10:12:00Z", "body": "",
+              "author": {"__typename": "Bot", "login": "helper"},
+              "comments": {"totalCount": 0, "nodes": []}
+            }
+          ]
+        },
+        "comments": {
+          "totalCount": 2,
+          "nodes": [
+            {"id": "IC_1", "url": "https://github.com/synth-owner/synth-repo/pull/7#issuecomment-1", "createdAt": "2026-10-31T10:13:00Z", "author": null},
+            {"id": "IC_2", "url": "https://github.com/synth-owner/synth-repo/pull/7#issuecomment-2", "createdAt": "2026-10-31T10:14:00Z", "author": {"__typename": "User", "login": "carol"}}
+          ]
+        },
+        "timelineItems": {
+          "nodes": [
+            {"__typename": "ClosedEvent", "id": "CE_1", "createdAt": "2026-10-31T09:00:00Z", "actor": {"__typename": "User", "login": "early-closer"}},
+            {"__typename": "HeadRefForcePushedEvent", "id": "FP_1", "createdAt": "2026-10-31T09:30:00Z", "actor": {"__typename": "User", "login": "alice"}, "beforeCommit": {"oid": "before1"}, "afterCommit": {"oid": "head000000000000000000000000000000000001"}},
+            {"__typename": "ClosedEvent", "id": "CE_2", "createdAt": "2026-10-31T10:20:00Z", "actor": {"__typename": "User", "login": "dave"}}
+          ]
+        }
+      }
+    }
+  }
+}

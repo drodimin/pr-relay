@@ -1,0 +1,50 @@
+query PRState($owner: String!, $repo: String!, $number: Int!) {
+  rateLimit { cost limit remaining used resetAt nodeCount }
+  repository(owner: $owner, name: $repo) {
+    pullRequest(number: $number) {
+      id number url state merged closed
+      mergedBy { __typename login }
+      headRefOid baseRefOid mergeable
+      commits(last: 30) {
+        totalCount
+        nodes { commit { oid author { user { login } } committer { user { login } } } }
+      }
+      statusCheckRollup {
+        commit { oid }
+        contexts(first: 100) {
+          totalCount
+          pageInfo { hasNextPage endCursor }
+          nodes {
+            __typename
+            ... on CheckRun {
+              id databaseId name status conclusion url detailsUrl startedAt completedAt
+              checkSuite { app { slug } workflowRun { runAttempt workflow { name } } }
+            }
+          }
+        }
+      }
+      reviews(last: 20) {
+        totalCount
+        nodes {
+          id state url submittedAt body
+          author { __typename login }
+          comments(first: 30) {
+            totalCount
+            nodes { id url path replyTo { id } author { __typename login } }
+          }
+        }
+      }
+      comments(last: 30) {
+        totalCount
+        nodes { id url createdAt author { __typename login } }
+      }
+      timelineItems(last: 10, itemTypes: [HEAD_REF_FORCE_PUSHED_EVENT, CLOSED_EVENT]) {
+        nodes {
+          __typename
+          ... on HeadRefForcePushedEvent { id createdAt actor { __typename login } beforeCommit { oid } afterCommit { oid } }
+          ... on ClosedEvent { id createdAt actor { __typename login } }
+        }
+      }
+    }
+  }
+}
