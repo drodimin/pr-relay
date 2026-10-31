@@ -37,8 +37,8 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 01-02-PLAN.md — model contract, pr.graphql + pure Decode, scripts/capture.sh
-- [ ] 01-03-PLAN.md — sanitize: Field/Login/Path/URL/ShortSHA, hostile corpus + fuzz (DLV-06)
+- [x] 01-02-PLAN.md — model contract, pr.graphql + pure Decode, scripts/capture.sh
+- [x] 01-03-PLAN.md — sanitize: Field/Login/Path/URL/ShortSHA, hostile corpus + fuzz (DLV-06)
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
@@ -117,7 +117,7 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Toolchain, Spikes & Pure Core | 1/9 | In Progress|  |
+| 1. Toolchain, Spikes & Pure Core | 3/9 | In Progress|  |
 | 2. Durable State & GitHub Poller | 0/TBD | Not started | - |
 | 3. herdr Client & Delivery | 0/TBD | Not started | - |
 | 4. Daemon, Control Protocol & CLI | 0/TBD | Not started | - |
