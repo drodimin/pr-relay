@@ -33,7 +33,7 @@ Design principle: flow-agnostic primitives. Only `--events` selects what a subsc
 Plans:
 **Wave 1**
 
-- [ ] 01-01-PLAN.md — Install go/gh, gh auth + public repo (checkpoint), stdlib module, golden helper, CI matrix green
+- [x] 01-01-PLAN.md — Install go/gh, gh auth + public repo (checkpoint), stdlib module, golden helper, CI matrix green
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
@@ -117,7 +117,7 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Toolchain, Spikes & Pure Core | 0/9 | Not started | - |
+| 1. Toolchain, Spikes & Pure Core | 1/9 | In Progress|  |
 | 2. Durable State & GitHub Poller | 0/TBD | Not started | - |
 | 3. herdr Client & Delivery | 0/TBD | Not started | - |
 | 4. Daemon, Control Protocol & CLI | 0/TBD | Not started | - |
