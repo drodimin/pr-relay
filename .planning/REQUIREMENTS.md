@@ -118,12 +118,59 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| (filled by roadmap) | | |
+| DIST-01 | Phase 5 | Pending |
+| DIST-02 | Phase 5 | Pending |
+| DIST-03 | Phase 5 | Pending |
+| DIST-04 | Phase 5 | Pending |
+| DIST-05 | Phase 5 | Pending |
+| DLV-01 | Phase 3 | Pending |
+| DLV-02 | Phase 3 | Pending |
+| DLV-03 | Phase 3 | Pending |
+| DLV-04 | Phase 3 | Pending |
+| DLV-05 | Phase 1 | Pending |
+| DLV-06 | Phase 1 | Pending |
+| DLV-07 | Phase 3 | Pending |
+| DLV-08 | Phase 3 | Pending |
+| DLV-09 | Phase 3 | Pending |
+| DMN-01 | Phase 4 | Pending |
+| DMN-02 | Phase 2 | Pending |
+| DMN-03 | Phase 2 | Pending |
+| DMN-04 | Phase 2 | Pending |
+| DMN-05 | Phase 4 | Pending |
+| DMN-06 | Phase 4 | Pending |
+| DMN-07 | Phase 4 | Pending |
+| DMN-08 | Phase 4 | Pending |
+| EVT-01 | Phase 1 | Pending |
+| EVT-02 | Phase 1 | Pending |
+| EVT-03 | Phase 1 | Pending |
+| EVT-04 | Phase 1 | Pending |
+| EVT-05 | Phase 1 | Pending |
+| EVT-06 | Phase 1 | Pending |
+| EVT-07 | Phase 1 | Pending |
+| EVT-08 | Phase 1 | Pending |
+| EVT-09 | Phase 2 | Pending |
+| LIFE-01 | Phase 4 | Pending |
+| LIFE-02 | Phase 3 | Pending |
+| LIFE-03 | Phase 2 | Pending |
+| LIFE-04 | Phase 3 | Pending |
+| LIFE-05 | Phase 2 | Pending |
+| LIFE-06 | Phase 4 | Pending |
+| LIFE-07 | Phase 4 | Pending |
+| LIFE-08 | Phase 3 | Pending |
+| SUB-01 | Phase 4 | Pending |
+| SUB-02 | Phase 4 | Pending |
+| SUB-03 | Phase 4 | Pending |
+| SUB-04 | Phase 2 | Pending |
+| SUB-05 | Phase 4 | Pending |
+| SUB-06 | Phase 4 | Pending |
+| SUB-07 | Phase 4 | Pending |
+| SUB-08 | Phase 2 | Pending |
+| SUB-09 | Phase 4 | Pending |
 
 **Coverage:**
 - v1 requirements: 48 total
-- Mapped to phases: 0 (pending roadmap)
-- Unmapped: 48
+- Mapped to phases: 48
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-10-31*
