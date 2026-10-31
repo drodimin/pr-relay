@@ -42,8 +42,8 @@ Plans:
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 01-04-PLAN.md — diff core: Step/Baseline, closed/conflict (D-21)/commits, CI ci.failed/ci.settled (D-06..D-09, D-19)
-- [ ] 01-05-PLAN.md — render.Lines grammar, golden + hostile render tests (DLV-05/06)
+- [x] 01-04-PLAN.md — diff core: Step/Baseline, closed/conflict (D-21)/commits, CI ci.failed/ci.settled (D-06..D-09, D-19)
+- [x] 01-05-PLAN.md — render.Lines grammar, golden + hostile render tests (DLV-05/06)
 - [ ] 01-07-PLAN.md — dummy repo + second actor (checkpoint), real fixture capture, D-21 synthetics, decode-all test
 - [ ] 01-08-PLAN.md — guarded prspike spikes S0-S7 (checkpoint), S4 GraphQL cost, 01-SPIKES.md
 
@@ -117,7 +117,7 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Toolchain, Spikes & Pure Core | 3/9 | In Progress|  |
+| 1. Toolchain, Spikes & Pure Core | 5/9 | In Progress|  |
 | 2. Durable State & GitHub Poller | 0/TBD | Not started | - |
 | 3. herdr Client & Delivery | 0/TBD | Not started | - |
 | 4. Daemon, Control Protocol & CLI | 0/TBD | Not started | - |
