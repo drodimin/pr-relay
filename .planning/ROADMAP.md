@@ -49,7 +49,7 @@ Plans:
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
-- [ ] 01-06-PLAN.md — diff reviews/comments/gap (D-10..D-13) + filter.ExcludeSelf (EVT-08, D-20)
+- [x] 01-06-PLAN.md — diff reviews/comments/gap (D-10..D-13) + filter.ExcludeSelf (EVT-08, D-20)
 
 **Wave 5** *(blocked on Wave 4 completion)*
 
@@ -117,7 +117,7 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Toolchain, Spikes & Pure Core | 5/9 | In Progress|  |
+| 1. Toolchain, Spikes & Pure Core | 6/9 | In Progress|  |
 | 2. Durable State & GitHub Poller | 0/TBD | Not started | - |
 | 3. herdr Client & Delivery | 0/TBD | Not started | - |
 | 4. Daemon, Control Protocol & CLI | 0/TBD | Not started | - |
