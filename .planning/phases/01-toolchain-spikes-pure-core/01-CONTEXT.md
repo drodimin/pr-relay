@@ -65,6 +65,13 @@ Out of scope for this phase:
 
   GitHub doesn't let you review your own PR, and EVT-08 filters your own activity, so the review, comment and bot scenarios need a second account or a bot acting on the dummy repo. The plan must ask the user for this.
 
+### Post-research decisions (2026-10-31, answers to RESEARCH.md Q1–Q5)
+- **D-19:** If a job is rerun on a SHA where `ci.settled` was already reported, re-arm settle tracking. Emit a new `ci.settled` only when the new settled result differs from the one already reported for that SHA. (Q1)
+- **D-20:** Deliver `closed`/`merged` even when the gh-authenticated user merged or closed the PR themselves. This is an explicit exception to EVT-08's self-exclusion. (Q2)
+- **D-21:** If mergeable is UNKNOWN at baseline, adopt the first resolved value silently as the baseline. Only later changes emit conflict events. (Q3: the user had no preference, so the recommended default applies.)
+- **D-22:** Fixture second actor: use both a `workflow_dispatch` workflow on the dummy repo that acts via `GITHUB_TOKEN` as `github-actions[bot]` (bot comments, plus approvals if the repo setting allows) and a second human GitHub account (approve, request-changes and comment reviews). The capture checkpoint must ask the user for the second account. (Q4)
+- **D-23:** Go module path: `github.com/drodimin/pr-relay`, which is also the public repo for D-17. (Q5)
+
 ### Claude's Discretion
 - How a single non-coalesced event is laid out. This is effectively settled by D-01 to D-03: one line.
 - How check conclusions map to failed or neutral. The research recommendation is:
