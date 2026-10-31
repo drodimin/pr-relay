@@ -15,7 +15,7 @@ type Result struct {
 	Events []model.Event
 	Memory model.Memory
 	// Gap reports that more activity arrived than the snapshot window holds
-	// (set by the activity step, plan 01-06).
+	// (set by stepActivity).
 	Gap bool
 }
 
@@ -62,8 +62,10 @@ func Step(m model.Memory, s model.Snapshot) Result {
 	events = append(events, stepLifecycle(&next, s)...)
 	events = append(events, stepCI(&next, s)...)
 	// activity: reviews and comments (plan 01-06)
+	ev, gap := stepActivity(&next, s)
+	events = append(events, ev...)
 	sortEvents(events)
-	return Result{Events: events, Memory: next}
+	return Result{Events: events, Memory: next, Gap: gap}
 }
 
 // sortEvents orders events by type rank (closed, conflict, commits, ci.failed,
