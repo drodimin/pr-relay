@@ -1,0 +1,8 @@
+/pr-relay
+/dist/
+*.test
+*.out
+coverage.*
+spikes/out/
+spikes/setsid-probe/setsid-probe
+.DS_Store
