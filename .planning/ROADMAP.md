@@ -26,7 +26,17 @@ Design principle: flow-agnostic primitives. Only `--events` selects what a subsc
   3. Feeding real GraphQL fixture pairs into the diff produces exactly one event per change for each type (ci.failed, ci.settled, review, comment, commits, conflict, closed). Flaky CI reruns do not duplicate, UNKNOWN merge state emits nothing, and force-pushes are detected.
   4. Activity by the gh-authenticated user never appears in the event output, while bots and other humans are treated the same.
   5. Rendered messages carry the `[pr-relay]` tag, PR identity, names and URLs only (no comment bodies), and a hostile-string corpus (control characters, ESC, newlines, over-length) is neutralized and capped in every interpolated field.
-**Plans**: TBD
+**Plans**: 9 plans
+Plans:
+- [ ] 01-01-PLAN.md — Install go/gh, gh auth + public repo (checkpoint), stdlib module, golden helper, CI matrix green
+- [ ] 01-02-PLAN.md — model contract, pr.graphql + pure Decode, scripts/capture.sh
+- [ ] 01-03-PLAN.md — sanitize: Field/Login/Path/URL/ShortSHA, hostile corpus + fuzz (DLV-06)
+- [ ] 01-04-PLAN.md — diff core: Step/Baseline, closed/conflict (D-21)/commits, CI ci.failed/ci.settled (D-06..D-09, D-19)
+- [ ] 01-05-PLAN.md — render.Lines grammar, golden + hostile render tests (DLV-05/06)
+- [ ] 01-06-PLAN.md — diff reviews/comments/gap (D-10..D-13) + filter.ExcludeSelf (EVT-08, D-20)
+- [ ] 01-07-PLAN.md — dummy repo + second actor (checkpoint), real fixture capture, D-21 synthetics, decode-all test
+- [ ] 01-08-PLAN.md — guarded prspike spikes S0-S7 (checkpoint), S4 GraphQL cost, 01-SPIKES.md
+- [ ] 01-09-PLAN.md — end-to-end scenario goldens + invariants, CI gate, human review
 
 ### Phase 2: Durable State & GitHub Poller
 **Goal**: Subscriptions, baselines and pending events survive crashes and reboots, and one poller watches each PR once with rate-limit-safe adaptive intervals.
@@ -78,7 +88,7 @@ Design principle: flow-agnostic primitives. Only `--events` selects what a subsc
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Toolchain, Spikes & Pure Core | 0/TBD | Not started | - |
+| 1. Toolchain, Spikes & Pure Core | 0/9 | Not started | - |
 | 2. Durable State & GitHub Poller | 0/TBD | Not started | - |
 | 3. herdr Client & Delivery | 0/TBD | Not started | - |
 | 4. Daemon, Control Protocol & CLI | 0/TBD | Not started | - |
