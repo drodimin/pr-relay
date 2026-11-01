@@ -1,0 +1,224 @@
+{
+  "data": {
+    "rateLimit": {
+      "cost": 1,
+      "limit": 5000,
+      "nodeCount": 790,
+      "remaining": 4809,
+      "resetAt": "2026-11-01T00:20:03Z",
+      "used": 191
+    },
+    "repository": {
+      "pullRequest": {
+        "baseRefOid": "493e966be29d4eabf5ff05d8884c7cabcb17dbc6",
+        "closed": false,
+        "comments": {
+          "nodes": [],
+          "totalCount": 0
+        },
+        "commits": {
+          "nodes": [
+            {
+              "commit": {
+                "author": {
+                  "user": {
+                    "login": "drodimin"
+                  }
+                },
+                "committer": {
+                  "user": {
+                    "login": "drodimin"
+                  }
+                },
+                "oid": "e7e92cc1e7f1cf98bb630d652da792c5d8eed170"
+              }
+            },
+            {
+              "commit": {
+                "author": {
+                  "user": {
+                    "login": "drodimin"
+                  }
+                },
+                "committer": {
+                  "user": {
+                    "login": "drodimin"
+                  }
+                },
+                "oid": "8e7a5057784dfd5c529436489402bdbdb0019c4d"
+              }
+            }
+          ],
+          "totalCount": 2
+        },
+        "headRefOid": "8e7a5057784dfd5c529436489402bdbdb0019c4d",
+        "id": "PR_kwDOVelM288AAAABMCZ6JA",
+        "mergeable": "MERGEABLE",
+        "merged": false,
+        "mergedBy": null,
+        "number": 15,
+        "reviews": {
+          "nodes": [],
+          "totalCount": 0
+        },
+        "state": "OPEN",
+        "statusCheckRollup": {
+          "commit": {
+            "oid": "8e7a5057784dfd5c529436489402bdbdb0019c4d"
+          },
+          "contexts": {
+            "nodes": [
+              {
+                "__typename": "CheckRun",
+                "checkSuite": {
+                  "app": {
+                    "slug": "github-actions"
+                  },
+                  "workflowRun": {
+                    "runAttempt": 1,
+                    "workflow": {
+                      "name": "CI"
+                    }
+                  }
+                },
+                "completedAt": null,
+                "conclusion": null,
+                "databaseId": 124698518569,
+                "detailsUrl": "https://github.com/drodimin/pr-relay-fixtures/actions/runs/41255781298/job/124698518569",
+                "id": "CR_kwDOVelM288AAAAdCJxkKQ",
+                "name": "lint",
+                "startedAt": "2026-11-01T00:13:17Z",
+                "status": "QUEUED",
+                "url": "https://github.com/drodimin/pr-relay-fixtures/runs/124698518569"
+              },
+              {
+                "__typename": "CheckRun",
+                "checkSuite": {
+                  "app": {
+                    "slug": "github-actions"
+                  },
+                  "workflowRun": {
+                    "runAttempt": 1,
+                    "workflow": {
+                      "name": "Other"
+                    }
+                  }
+                },
+                "completedAt": null,
+                "conclusion": null,
+                "databaseId": 124698518321,
+                "detailsUrl": "https://github.com/drodimin/pr-relay-fixtures/actions/runs/41255781261/job/124698518321",
+                "id": "CR_kwDOVelM288AAAAdCJxjMQ",
+                "name": "build",
+                "startedAt": "2026-11-01T00:13:19Z",
+                "status": "IN_PROGRESS",
+                "url": "https://github.com/drodimin/pr-relay-fixtures/runs/124698518321"
+              },
+              {
+                "__typename": "CheckRun",
+                "checkSuite": {
+                  "app": {
+                    "slug": "github-actions"
+                  },
+                  "workflowRun": {
+                    "runAttempt": 1,
+                    "workflow": {
+                      "name": "CI"
+                    }
+                  }
+                },
+                "completedAt": null,
+                "conclusion": null,
+                "databaseId": 124698518719,
+                "detailsUrl": "https://github.com/drodimin/pr-relay-fixtures/actions/runs/41255781298/job/124698518719",
+                "id": "CR_kwDOVelM288AAAAdCJxkvw",
+                "name": "test",
+                "startedAt": "2026-11-01T00:13:19Z",
+                "status": "IN_PROGRESS",
+                "url": "https://github.com/drodimin/pr-relay-fixtures/runs/124698518719"
+              },
+              {
+                "__typename": "CheckRun",
+                "checkSuite": {
+                  "app": {
+                    "slug": "github-actions"
+                  },
+                  "workflowRun": {
+                    "runAttempt": 1,
+                    "workflow": {
+                      "name": "CI"
+                    }
+                  }
+                },
+                "completedAt": "2026-11-01T00:13:16Z",
+                "conclusion": "SKIPPED",
+                "databaseId": 124698519386,
+                "detailsUrl": "https://github.com/drodimin/pr-relay-fixtures/actions/runs/41255781298/job/124698519386",
+                "id": "CR_kwDOVelM288AAAAdCJxnWg",
+                "name": "flaky",
+                "startedAt": "2026-11-01T00:13:17Z",
+                "status": "COMPLETED",
+                "url": "https://github.com/drodimin/pr-relay-fixtures/runs/124698519386"
+              },
+              {
+                "__typename": "CheckRun",
+                "checkSuite": {
+                  "app": {
+                    "slug": "github-actions"
+                  },
+                  "workflowRun": {
+                    "runAttempt": 1,
+                    "workflow": {
+                      "name": "CI"
+                    }
+                  }
+                },
+                "completedAt": "2026-11-01T00:13:16Z",
+                "conclusion": "SKIPPED",
+                "databaseId": 124698519546,
+                "detailsUrl": "https://github.com/drodimin/pr-relay-fixtures/actions/runs/41255781298/job/124698519546",
+                "id": "CR_kwDOVelM288AAAAdCJxn-g",
+                "name": "slow",
+                "startedAt": "2026-11-01T00:13:17Z",
+                "status": "COMPLETED",
+                "url": "https://github.com/drodimin/pr-relay-fixtures/runs/124698519546"
+              },
+              {
+                "__typename": "CheckRun",
+                "checkSuite": {
+                  "app": {
+                    "slug": "github-actions"
+                  },
+                  "workflowRun": {
+                    "runAttempt": 1,
+                    "workflow": {
+                      "name": "CI"
+                    }
+                  }
+                },
+                "completedAt": null,
+                "conclusion": null,
+                "databaseId": 124698518726,
+                "detailsUrl": "https://github.com/drodimin/pr-relay-fixtures/actions/runs/41255781298/job/124698518726",
+                "id": "CR_kwDOVelM288AAAAdCJxkxg",
+                "name": "build",
+                "startedAt": "2026-11-01T00:13:19Z",
+                "status": "IN_PROGRESS",
+                "url": "https://github.com/drodimin/pr-relay-fixtures/runs/124698518726"
+              }
+            ],
+            "pageInfo": {
+              "endCursor": "Ng",
+              "hasNextPage": false
+            },
+            "totalCount": 6
+          }
+        },
+        "timelineItems": {
+          "nodes": []
+        },
+        "url": "https://github.com/drodimin/pr-relay-fixtures/pull/15"
+      }
+    }
+  }
+}

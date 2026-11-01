@@ -1,0 +1,13 @@
+name: Other
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  # Same job name as CI's build: both report a check run named "build".
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "other build ok"

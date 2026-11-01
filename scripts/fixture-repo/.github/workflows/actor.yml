@@ -1,0 +1,52 @@
+name: Actor
+# Acts on a PR as github-actions[bot] using GITHUB_TOKEN, for bot-author fixtures.
+on:
+  workflow_dispatch:
+    inputs:
+      pr:
+        description: PR number
+        required: true
+      action:
+        description: comment | approve | request-changes | review-inline | reply
+        required: true
+      reply_to:
+        description: review comment databaseId to reply to (action=reply)
+        required: false
+        default: ""
+
+permissions:
+  pull-requests: write
+  contents: read
+
+jobs:
+  act:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_REPO: ${{ github.repository }}
+      PR: ${{ inputs.pr }}
+      ACTION: ${{ inputs.action }}
+      REPLY_TO: ${{ inputs.reply_to }}
+      BODY: "# pr-relay fixture"
+    steps:
+      - name: act
+        run: |
+          set -euo pipefail
+          case "$PR" in ''|*[!0-9]*) echo "pr must be a number"; exit 1;; esac
+          case "$ACTION" in
+            comment)
+              gh pr comment "$PR" --body "$BODY" ;;
+            approve)
+              gh pr review "$PR" --approve ;;
+            request-changes)
+              gh pr review "$PR" --request-changes --body "$BODY" ;;
+            review-inline)
+              jq -n --arg body "$BODY" '{event:"COMMENT", body:$body,
+                comments:[{path:"src/x.go", line:10, side:"RIGHT", body:$body}]}' |
+                gh api -X POST "repos/$GH_REPO/pulls/$PR/reviews" --input - ;;
+            reply)
+              case "$REPLY_TO" in ''|*[!0-9]*) echo "reply_to must be a number"; exit 1;; esac
+              gh api -X POST "repos/$GH_REPO/pulls/$PR/comments/$REPLY_TO/replies" -f body="$BODY" ;;
+            *)
+              echo "unknown action: $ACTION"; exit 1 ;;
+          esac
