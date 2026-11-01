@@ -1,0 +1,5 @@
+step 01-reply-by-second:
+[pr-relay] drodimin/pr-relay-fixtures#11 reply by dmitriy-medme on src/x.go https://github.com/drodimin/pr-relay-fixtures/pull/11#discussion_r4433784645
+step 02-reply-by-self:
+  excluded (self): drodimin/pr-relay-fixtures#11 reply by drodimin on src/x.go https://github.com/drodimin/pr-relay-fixtures/pull/11#discussion_r4433785547
+step replay 02-reply-by-self:

@@ -58,7 +58,7 @@ replaying them again emits nothing.
 | synthetic-mergeable-unknown-conflicting | synthetic | #15 | - | 00 = conflict-on-off/00 with mergeable set to UNKNOWN. 01 = the real conflict-on-off/02 CONFLICTING. 02 = the same again (D-21) |
 | synthetic-mergeable-unknown-mergeable | synthetic | #16 | - | 00 = mergeable-unknown/02 with mergeable set to UNKNOWN. 01 = the original MERGEABLE. 02 = UNKNOWN again (D-21) |
 | synthetic-startup-failure | synthetic | #1 | - | 00 = ci-fail-pass/05 (running). 01 = ci-fail-pass/08 with CI/test set to STARTUP_FAILURE. 02 = the same again for settle |
-| synthetic-many-failures | synthetic | #1 | - | 00 = ci-fail-pass/05 (running). 01 = ci-fail-pass/08 with CI/test expanded to 9 failing check runs `test-1`..`test-9` (distinct names, ids and databaseIds). 02 = the same again for settle (D-03) |
+| synthetic-many-failures | synthetic | #1 | - | 00 = ci-fail-pass/05 (running). 01 = ci-fail-pass/08 with CI/test expanded to 9 failing check runs `test-1`..`test-9` (distinct names, ids, databaseIds and check-run urls). 02 = the same again for settle (D-03) |
 
 ## Expected events
 

@@ -1,0 +1,9 @@
+step 01-bot-comment:
+[pr-relay] drodimin/pr-relay-fixtures#12 comment by github-actions[bot] https://github.com/drodimin/pr-relay-fixtures/pull/12#issuecomment-6550982755
+step 02-bot-approved:
+[pr-relay] drodimin/pr-relay-fixtures#12 review approved by github-actions[bot] https://github.com/drodimin/pr-relay-fixtures/pull/12#pullrequestreview-5725559562
+step 03-bot-review-inline:
+[pr-relay] drodimin/pr-relay-fixtures#12 review commented by github-actions[bot] (1 inline comment) https://github.com/drodimin/pr-relay-fixtures/pull/12#pullrequestreview-5725560636
+step 04-bot-reply:
+[pr-relay] drodimin/pr-relay-fixtures#12 reply by github-actions[bot] on src/x.go https://github.com/drodimin/pr-relay-fixtures/pull/12#discussion_r4433787662
+step replay 04-bot-reply:

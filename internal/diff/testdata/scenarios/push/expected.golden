@@ -1,0 +1,6 @@
+step 01-push-2-commits-unknown:
+  excluded (self): drodimin/pr-relay-fixtures#4 commits: 2 new, head 1f12517 https://github.com/drodimin/pr-relay-fixtures/pull/4/commits
+step 02-mergeable-ci-running:
+step 03-ci-passed:
+step replay 03-ci-passed:
+[pr-relay] drodimin/pr-relay-fixtures#4 ci.settled: passed (6 checks) https://github.com/drodimin/pr-relay-fixtures/pull/4/checks

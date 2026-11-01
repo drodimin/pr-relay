@@ -1,0 +1,13 @@
+step 01-self-comment:
+  excluded (self): drodimin/pr-relay-fixtures#14 comment by drodimin https://github.com/drodimin/pr-relay-fixtures/pull/14#issuecomment-6550983120
+step 02-self-reply:
+  excluded (self): drodimin/pr-relay-fixtures#14 reply by drodimin on src/x.go https://github.com/drodimin/pr-relay-fixtures/pull/14#discussion_r4433785794
+step 03-self-review-inline:
+  excluded (self): drodimin/pr-relay-fixtures#14 review commented by drodimin (1 inline comment) https://github.com/drodimin/pr-relay-fixtures/pull/14#pullrequestreview-5725560491
+step 04-self-push-unknown:
+  excluded (self): drodimin/pr-relay-fixtures#14 commits: 1 new, head 4454151 https://github.com/drodimin/pr-relay-fixtures/pull/14/commits
+step 05-mergeable-ci-queued:
+step 06-ci-running:
+step 07-ci-passed:
+step replay 07-ci-passed:
+[pr-relay] drodimin/pr-relay-fixtures#14 ci.settled: passed (6 checks) https://github.com/drodimin/pr-relay-fixtures/pull/14/checks

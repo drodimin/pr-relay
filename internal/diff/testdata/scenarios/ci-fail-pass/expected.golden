@@ -1,0 +1,12 @@
+step 01-mergeable-ci-queued:
+step 02-ci-running:
+step 03-test-failed:
+[pr-relay] drodimin/pr-relay-fixtures#1 ci.failed: test https://github.com/drodimin/pr-relay-fixtures/runs/124697567724
+step 04-push-fix:
+  excluded (self): drodimin/pr-relay-fixtures#1 commits: 1 new, head c48a1d9 https://github.com/drodimin/pr-relay-fixtures/pull/1/commits
+step 05-ci-running:
+step 06-ci-mostly-passed:
+step 07-other-build-running:
+step 08-ci-passed:
+step replay 08-ci-passed:
+[pr-relay] drodimin/pr-relay-fixtures#1 ci.settled: passed (6 checks) https://github.com/drodimin/pr-relay-fixtures/pull/1/checks

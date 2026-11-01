@@ -1,0 +1,5 @@
+step 01-mergeable-ci-running:
+step 02-slow-running-others-passed:
+step 03-slow-cancelled:
+step replay 03-slow-cancelled:
+[pr-relay] drodimin/pr-relay-fixtures#3 ci.settled: passed (6 checks) https://github.com/drodimin/pr-relay-fixtures/pull/3/checks

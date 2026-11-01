@@ -1,5 +1,5 @@
 {
-  "_synthetic": "from ci-fail-pass/08-ci-passed.json with CI/test expanded to 9 failing check runs test-1..test-9",
+  "_synthetic": "from ci-fail-pass/08-ci-passed.json with CI/test expanded to 9 failing check runs test-1..test-9 (distinct names, ids, databaseIds and urls)",
   "data": {
     "rateLimit": {
       "cost": 1,
@@ -200,12 +200,12 @@
                 "completedAt": "2026-11-01T00:09:31Z",
                 "conclusion": "FAILURE",
                 "databaseId": 124697654376,
-                "detailsUrl": "https://github.com/drodimin/pr-relay-fixtures/actions/runs/41255487079/job/124697654375",
+                "detailsUrl": "https://github.com/drodimin/pr-relay-fixtures/actions/runs/41255487079/job/124697654376",
                 "id": "CR_kwDOVelM288AAAAdCI80Zw-1",
                 "name": "test-1",
                 "startedAt": "2026-11-01T00:09:27Z",
                 "status": "COMPLETED",
-                "url": "https://github.com/drodimin/pr-relay-fixtures/runs/124697654375"
+                "url": "https://github.com/drodimin/pr-relay-fixtures/runs/124697654376"
               },
               {
                 "__typename": "CheckRun",
@@ -223,12 +223,12 @@
                 "completedAt": "2026-11-01T00:09:31Z",
                 "conclusion": "FAILURE",
                 "databaseId": 124697654377,
-                "detailsUrl": "https://github.com/drodimin/pr-relay-fixtures/actions/runs/41255487079/job/124697654375",
+                "detailsUrl": "https://github.com/drodimin/pr-relay-fixtures/actions/runs/41255487079/job/124697654377",
                 "id": "CR_kwDOVelM288AAAAdCI80Zw-2",
                 "name": "test-2",
                 "startedAt": "2026-11-01T00:09:27Z",
                 "status": "COMPLETED",
-                "url": "https://github.com/drodimin/pr-relay-fixtures/runs/124697654375"
+                "url": "https://github.com/drodimin/pr-relay-fixtures/runs/124697654377"
               },
               {
                 "__typename": "CheckRun",
@@ -246,12 +246,12 @@
                 "completedAt": "2026-11-01T00:09:31Z",
                 "conclusion": "FAILURE",
                 "databaseId": 124697654378,
-                "detailsUrl": "https://github.com/drodimin/pr-relay-fixtures/actions/runs/41255487079/job/124697654375",
+                "detailsUrl": "https://github.com/drodimin/pr-relay-fixtures/actions/runs/41255487079/job/124697654378",
                 "id": "CR_kwDOVelM288AAAAdCI80Zw-3",
                 "name": "test-3",
                 "startedAt": "2026-11-01T00:09:27Z",
                 "status": "COMPLETED",
-                "url": "https://github.com/drodimin/pr-relay-fixtures/runs/124697654375"
+                "url": "https://github.com/drodimin/pr-relay-fixtures/runs/124697654378"
               },
               {
                 "__typename": "CheckRun",
@@ -269,12 +269,12 @@
                 "completedAt": "2026-11-01T00:09:31Z",
                 "conclusion": "FAILURE",
                 "databaseId": 124697654379,
-                "detailsUrl": "https://github.com/drodimin/pr-relay-fixtures/actions/runs/41255487079/job/124697654375",
+                "detailsUrl": "https://github.com/drodimin/pr-relay-fixtures/actions/runs/41255487079/job/124697654379",
                 "id": "CR_kwDOVelM288AAAAdCI80Zw-4",
                 "name": "test-4",
                 "startedAt": "2026-11-01T00:09:27Z",
                 "status": "COMPLETED",
-                "url": "https://github.com/drodimin/pr-relay-fixtures/runs/124697654375"
+                "url": "https://github.com/drodimin/pr-relay-fixtures/runs/124697654379"
               },
               {
                 "__typename": "CheckRun",
@@ -292,12 +292,12 @@
                 "completedAt": "2026-11-01T00:09:31Z",
                 "conclusion": "FAILURE",
                 "databaseId": 124697654380,
-                "detailsUrl": "https://github.com/drodimin/pr-relay-fixtures/actions/runs/41255487079/job/124697654375",
+                "detailsUrl": "https://github.com/drodimin/pr-relay-fixtures/actions/runs/41255487079/job/124697654380",
                 "id": "CR_kwDOVelM288AAAAdCI80Zw-5",
                 "name": "test-5",
                 "startedAt": "2026-11-01T00:09:27Z",
                 "status": "COMPLETED",
-                "url": "https://github.com/drodimin/pr-relay-fixtures/runs/124697654375"
+                "url": "https://github.com/drodimin/pr-relay-fixtures/runs/124697654380"
               },
               {
                 "__typename": "CheckRun",
@@ -315,12 +315,12 @@
                 "completedAt": "2026-11-01T00:09:31Z",
                 "conclusion": "FAILURE",
                 "databaseId": 124697654381,
-                "detailsUrl": "https://github.com/drodimin/pr-relay-fixtures/actions/runs/41255487079/job/124697654375",
+                "detailsUrl": "https://github.com/drodimin/pr-relay-fixtures/actions/runs/41255487079/job/124697654381",
                 "id": "CR_kwDOVelM288AAAAdCI80Zw-6",
                 "name": "test-6",
                 "startedAt": "2026-11-01T00:09:27Z",
                 "status": "COMPLETED",
-                "url": "https://github.com/drodimin/pr-relay-fixtures/runs/124697654375"
+                "url": "https://github.com/drodimin/pr-relay-fixtures/runs/124697654381"
               },
               {
                 "__typename": "CheckRun",
@@ -338,12 +338,12 @@
                 "completedAt": "2026-11-01T00:09:31Z",
                 "conclusion": "FAILURE",
                 "databaseId": 124697654382,
-                "detailsUrl": "https://github.com/drodimin/pr-relay-fixtures/actions/runs/41255487079/job/124697654375",
+                "detailsUrl": "https://github.com/drodimin/pr-relay-fixtures/actions/runs/41255487079/job/124697654382",
                 "id": "CR_kwDOVelM288AAAAdCI80Zw-7",
                 "name": "test-7",
                 "startedAt": "2026-11-01T00:09:27Z",
                 "status": "COMPLETED",
-                "url": "https://github.com/drodimin/pr-relay-fixtures/runs/124697654375"
+                "url": "https://github.com/drodimin/pr-relay-fixtures/runs/124697654382"
               },
               {
                 "__typename": "CheckRun",
@@ -361,12 +361,12 @@
                 "completedAt": "2026-11-01T00:09:31Z",
                 "conclusion": "FAILURE",
                 "databaseId": 124697654383,
-                "detailsUrl": "https://github.com/drodimin/pr-relay-fixtures/actions/runs/41255487079/job/124697654375",
+                "detailsUrl": "https://github.com/drodimin/pr-relay-fixtures/actions/runs/41255487079/job/124697654383",
                 "id": "CR_kwDOVelM288AAAAdCI80Zw-8",
                 "name": "test-8",
                 "startedAt": "2026-11-01T00:09:27Z",
                 "status": "COMPLETED",
-                "url": "https://github.com/drodimin/pr-relay-fixtures/runs/124697654375"
+                "url": "https://github.com/drodimin/pr-relay-fixtures/runs/124697654383"
               },
               {
                 "__typename": "CheckRun",
@@ -384,12 +384,12 @@
                 "completedAt": "2026-11-01T00:09:31Z",
                 "conclusion": "FAILURE",
                 "databaseId": 124697654384,
-                "detailsUrl": "https://github.com/drodimin/pr-relay-fixtures/actions/runs/41255487079/job/124697654375",
+                "detailsUrl": "https://github.com/drodimin/pr-relay-fixtures/actions/runs/41255487079/job/124697654384",
                 "id": "CR_kwDOVelM288AAAAdCI80Zw-9",
                 "name": "test-9",
                 "startedAt": "2026-11-01T00:09:27Z",
                 "status": "COMPLETED",
-                "url": "https://github.com/drodimin/pr-relay-fixtures/runs/124697654375"
+                "url": "https://github.com/drodimin/pr-relay-fixtures/runs/124697654384"
               }
             ],
             "pageInfo": {

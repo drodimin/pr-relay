@@ -1,0 +1,12 @@
+step 01-main-push-unknown:
+step 02-conflicting:
+[pr-relay] drodimin/pr-relay-fixtures#15 conflict: conflicting https://github.com/drodimin/pr-relay-fixtures/pull/15
+step 03-merge-main-pushed-unknown:
+  excluded (self): drodimin/pr-relay-fixtures#15 commits: 1 new, head 8e7a505 https://github.com/drodimin/pr-relay-fixtures/pull/15/commits
+step 04-mergeable:
+[pr-relay] drodimin/pr-relay-fixtures#15 conflict: cleared https://github.com/drodimin/pr-relay-fixtures/pull/15
+step 05-ci-queued:
+step 06-ci-running:
+step 07-ci-passed:
+step replay 07-ci-passed:
+[pr-relay] drodimin/pr-relay-fixtures#15 ci.settled: passed (6 checks) https://github.com/drodimin/pr-relay-fixtures/pull/15/checks

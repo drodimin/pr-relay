@@ -1,0 +1,5 @@
+step 01-test-startup-failure:
+[pr-relay] drodimin/pr-relay-fixtures#1 ci.failed: test https://github.com/drodimin/pr-relay-fixtures/runs/124697654375
+step 02-settle-repeat:
+[pr-relay] drodimin/pr-relay-fixtures#1 ci.settled: failed (1 of 6): test https://github.com/drodimin/pr-relay-fixtures/pull/1/checks
+step replay 02-settle-repeat:

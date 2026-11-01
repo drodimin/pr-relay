@@ -1,0 +1,8 @@
+step 01-mergeable-ci-running:
+step 02-flaky-failed:
+[pr-relay] drodimin/pr-relay-fixtures#13 ci.failed: flaky https://github.com/drodimin/pr-relay-fixtures/runs/124697799233
+step 03-rerun-started:
+step 04-flaky-passed-lint-copied:
+step 05-test-copied-settled:
+step replay 05-test-copied-settled:
+[pr-relay] drodimin/pr-relay-fixtures#13 ci.settled: passed (6 checks) https://github.com/drodimin/pr-relay-fixtures/pull/13/checks

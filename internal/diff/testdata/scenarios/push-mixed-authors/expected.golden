@@ -1,0 +1,6 @@
+step 01-push-second-and-self:
+[pr-relay] drodimin/pr-relay-fixtures#18 commits: 2 new, head 10d5140 https://github.com/drodimin/pr-relay-fixtures/pull/18/commits
+step 02-ci-running:
+step 03-ci-passed:
+step replay 03-ci-passed:
+[pr-relay] drodimin/pr-relay-fixtures#18 ci.settled: passed (6 checks) https://github.com/drodimin/pr-relay-fixtures/pull/18/checks

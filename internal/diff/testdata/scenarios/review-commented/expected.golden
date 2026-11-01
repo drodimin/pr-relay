@@ -1,0 +1,7 @@
+step 01-commented-body-1-inline:
+[pr-relay] drodimin/pr-relay-fixtures#9 review commented by dmitriy-medme (1 inline comment) https://github.com/drodimin/pr-relay-fixtures/pull/9#pullrequestreview-5725558358
+step 02-commented-nobody-1-inline:
+[pr-relay] drodimin/pr-relay-fixtures#9 review commented by dmitriy-medme (1 inline comment) https://github.com/drodimin/pr-relay-fixtures/pull/9#pullrequestreview-5725559290
+step 03-single-comment:
+[pr-relay] drodimin/pr-relay-fixtures#9 review commented by dmitriy-medme (1 inline comment) https://github.com/drodimin/pr-relay-fixtures/pull/9#pullrequestreview-5725560147
+step replay 03-single-comment:

@@ -1,0 +1,6 @@
+step 01-force-push-unknown:
+  excluded (self): drodimin/pr-relay-fixtures#6 commits: force-pushed, head ba9c946 (was 9289a9b) https://github.com/drodimin/pr-relay-fixtures/compare/9289a9b...ba9c946
+step 02-mergeable-ci-running:
+step 03-ci-passed:
+step replay 03-ci-passed:
+[pr-relay] drodimin/pr-relay-fixtures#6 ci.settled: passed (6 checks) https://github.com/drodimin/pr-relay-fixtures/pull/6/checks

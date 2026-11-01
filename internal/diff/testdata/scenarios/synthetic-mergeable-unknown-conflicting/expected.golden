@@ -1,0 +1,4 @@
+step 01-conflicting:
+[pr-relay] drodimin/pr-relay-fixtures#15 conflict: conflicting https://github.com/drodimin/pr-relay-fixtures/pull/15
+step 02-conflicting-again:
+step replay 02-conflicting-again:
