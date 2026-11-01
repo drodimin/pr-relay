@@ -88,7 +88,7 @@ func TestMergeableUnknown(t *testing.T) {
 		snap(withMergeable("UNKNOWN")),
 		snap(withMergeable("CONFLICTING")),
 	)
-	if steps[0] != nil && len(steps[0]) != 0 {
+	if len(steps[0]) != 0 {
 		t.Fatalf("UNKNOWN emitted: %+v", steps[0])
 	}
 	all := flatten(steps)

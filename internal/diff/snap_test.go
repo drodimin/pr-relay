@@ -29,10 +29,6 @@ func withHead(oid string) func(*model.Snapshot) {
 	return func(s *model.Snapshot) { s.HeadOID = oid }
 }
 
-func withBase(oid string) func(*model.Snapshot) {
-	return func(s *model.Snapshot) { s.BaseOID = oid }
-}
-
 func withMergeable(v string) func(*model.Snapshot) {
 	return func(s *model.Snapshot) { s.Mergeable = v }
 }
