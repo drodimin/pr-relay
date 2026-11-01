@@ -90,4 +90,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-10-31 after initialization*
+*Last updated: 2026-11-01 after Phase 1 (toolchain, spikes, pure core: event detection, own-activity filter and message rendering are fixture-tested; nothing is user-facing yet, so no Active item moves to Validated)*
