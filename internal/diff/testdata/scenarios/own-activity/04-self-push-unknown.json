@@ -1,0 +1,164 @@
+{
+  "data": {
+    "rateLimit": {
+      "cost": 1,
+      "limit": 5000,
+      "nodeCount": 790,
+      "remaining": 4832,
+      "resetAt": "2026-11-01T00:20:03Z",
+      "used": 168
+    },
+    "repository": {
+      "pullRequest": {
+        "baseRefOid": "30b9f179faaa8fd79d4a47eec63b6987bab9efcc",
+        "closed": false,
+        "comments": {
+          "nodes": [
+            {
+              "author": {
+                "__typename": "User",
+                "login": "drodimin"
+              },
+              "createdAt": "2026-11-01T00:10:24Z",
+              "id": "IC_kwDOVelM288AAAABhngR0A",
+              "url": "https://github.com/drodimin/pr-relay-fixtures/pull/14#issuecomment-6550983120"
+            }
+          ],
+          "totalCount": 1
+        },
+        "commits": {
+          "nodes": [
+            {
+              "commit": {
+                "author": {
+                  "user": {
+                    "login": "drodimin"
+                  }
+                },
+                "committer": {
+                  "user": {
+                    "login": "drodimin"
+                  }
+                },
+                "oid": "991b5201c7b43e69fc299739a609e8dcacd4afb9"
+              }
+            },
+            {
+              "commit": {
+                "author": {
+                  "user": {
+                    "login": "drodimin"
+                  }
+                },
+                "committer": {
+                  "user": {
+                    "login": "drodimin"
+                  }
+                },
+                "oid": "445415131102f6cf6b7d3c7f8b521e838001965f"
+              }
+            }
+          ],
+          "totalCount": 2
+        },
+        "headRefOid": "445415131102f6cf6b7d3c7f8b521e838001965f",
+        "id": "PR_kwDOVelM288AAAABMCY1hg",
+        "mergeable": "UNKNOWN",
+        "merged": false,
+        "mergedBy": null,
+        "number": 14,
+        "reviews": {
+          "nodes": [
+            {
+              "author": {
+                "__typename": "User",
+                "login": "dmitriy-medme"
+              },
+              "body": "",
+              "comments": {
+                "nodes": [
+                  {
+                    "author": {
+                      "__typename": "User",
+                      "login": "dmitriy-medme"
+                    },
+                    "id": "PRRC_kwDOVelM288AAAABCEYvOA",
+                    "path": "src/x.go",
+                    "replyTo": null,
+                    "url": "https://github.com/drodimin/pr-relay-fixtures/pull/14#discussion_r4433784632"
+                  }
+                ],
+                "totalCount": 1
+              },
+              "id": "PRR_kwDOVelM288AAAABVUUWeg",
+              "state": "COMMENTED",
+              "submittedAt": "2026-11-01T00:10:16Z",
+              "url": "https://github.com/drodimin/pr-relay-fixtures/pull/14#pullrequestreview-5725558394"
+            },
+            {
+              "author": {
+                "__typename": "User",
+                "login": "drodimin"
+              },
+              "body": "",
+              "comments": {
+                "nodes": [
+                  {
+                    "author": {
+                      "__typename": "User",
+                      "login": "drodimin"
+                    },
+                    "id": "PRRC_kwDOVelM288AAAABCEYzwg",
+                    "path": "src/x.go",
+                    "replyTo": {
+                      "id": "PRRC_kwDOVelM288AAAABCEYvOA"
+                    },
+                    "url": "https://github.com/drodimin/pr-relay-fixtures/pull/14#discussion_r4433785794"
+                  }
+                ],
+                "totalCount": 1
+              },
+              "id": "PRR_kwDOVelM288AAAABVUUbEQ",
+              "state": "COMMENTED",
+              "submittedAt": "2026-11-01T00:10:44Z",
+              "url": "https://github.com/drodimin/pr-relay-fixtures/pull/14#pullrequestreview-5725559569"
+            },
+            {
+              "author": {
+                "__typename": "User",
+                "login": "drodimin"
+              },
+              "body": "PRRELAY-BODY-SENTINEL",
+              "comments": {
+                "nodes": [
+                  {
+                    "author": {
+                      "__typename": "User",
+                      "login": "drodimin"
+                    },
+                    "id": "PRRC_kwDOVelM288AAAABCEY2yA",
+                    "path": "src/y.go",
+                    "replyTo": null,
+                    "url": "https://github.com/drodimin/pr-relay-fixtures/pull/14#discussion_r4433786568"
+                  }
+                ],
+                "totalCount": 1
+              },
+              "id": "PRR_kwDOVelM288AAAABVUUeqw",
+              "state": "COMMENTED",
+              "submittedAt": "2026-11-01T00:11:06Z",
+              "url": "https://github.com/drodimin/pr-relay-fixtures/pull/14#pullrequestreview-5725560491"
+            }
+          ],
+          "totalCount": 3
+        },
+        "state": "OPEN",
+        "statusCheckRollup": null,
+        "timelineItems": {
+          "nodes": []
+        },
+        "url": "https://github.com/drodimin/pr-relay-fixtures/pull/14"
+      }
+    }
+  }
+}
