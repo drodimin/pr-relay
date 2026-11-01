@@ -121,11 +121,3 @@ func runChild(outDir string) error {
 		<-ticker.C
 	}
 }
-
-func sid() int {
-	s, err := syscall.Getsid(0)
-	if err != nil {
-		return -1
-	}
-	return s
-}
