@@ -1,0 +1,46 @@
+name: CI
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "lint ok"
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: fail when FAIL exists
+        run: |
+          if [ -f FAIL ]; then echo "FAIL file present"; exit 1; fi
+          echo "test ok"
+
+  # Fails on the first attempt and passes on any rerun. Only runs on
+  # branches named flaky-* so other scenarios keep a green baseline.
+  flaky:
+    if: contains(github.head_ref, 'flaky')
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          ATTEMPT: ${{ github.run_attempt }}
+        run: |
+          echo "run_attempt=$ATTEMPT"
+          if [ "$ATTEMPT" = "1" ]; then exit 1; fi
+
+  # Long-running job so the run can be cancelled. Only on slow-* branches.
+  slow:
+    if: contains(github.head_ref, 'slow')
+    runs-on: ubuntu-latest
+    steps:
+      - run: sleep 600
+
+  # Same job name as other.yml's build, for a real key-collision fixture.
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "ci build ok"

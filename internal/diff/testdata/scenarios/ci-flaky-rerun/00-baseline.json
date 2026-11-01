@@ -1,0 +1,58 @@
+{
+  "data": {
+    "rateLimit": {
+      "cost": 1,
+      "limit": 5000,
+      "nodeCount": 790,
+      "remaining": 4933,
+      "resetAt": "2026-11-01T00:20:03Z",
+      "used": 67
+    },
+    "repository": {
+      "pullRequest": {
+        "baseRefOid": "30b9f179faaa8fd79d4a47eec63b6987bab9efcc",
+        "closed": false,
+        "comments": {
+          "nodes": [],
+          "totalCount": 0
+        },
+        "commits": {
+          "nodes": [
+            {
+              "commit": {
+                "author": {
+                  "user": {
+                    "login": "drodimin"
+                  }
+                },
+                "committer": {
+                  "user": {
+                    "login": "drodimin"
+                  }
+                },
+                "oid": "3f4d7d24bf36ee535c12cda619be32711f38a1db"
+              }
+            }
+          ],
+          "totalCount": 1
+        },
+        "headRefOid": "3f4d7d24bf36ee535c12cda619be32711f38a1db",
+        "id": "PR_kwDOVelM288AAAABMCY04w",
+        "mergeable": "UNKNOWN",
+        "merged": false,
+        "mergedBy": null,
+        "number": 13,
+        "reviews": {
+          "nodes": [],
+          "totalCount": 0
+        },
+        "state": "OPEN",
+        "statusCheckRollup": null,
+        "timelineItems": {
+          "nodes": []
+        },
+        "url": "https://github.com/drodimin/pr-relay-fixtures/pull/13"
+      }
+    }
+  }
+}

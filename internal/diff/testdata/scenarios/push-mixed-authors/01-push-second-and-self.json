@@ -1,0 +1,88 @@
+{
+  "data": {
+    "rateLimit": {
+      "cost": 1,
+      "limit": 5000,
+      "nodeCount": 790,
+      "remaining": 4757,
+      "resetAt": "2026-11-01T00:20:03Z",
+      "used": 243
+    },
+    "repository": {
+      "pullRequest": {
+        "baseRefOid": "cd4a8ded19f9fb760639140ad6cda6efdd58a83c",
+        "closed": false,
+        "comments": {
+          "nodes": [],
+          "totalCount": 0
+        },
+        "commits": {
+          "nodes": [
+            {
+              "commit": {
+                "author": {
+                  "user": {
+                    "login": "drodimin"
+                  }
+                },
+                "committer": {
+                  "user": {
+                    "login": "drodimin"
+                  }
+                },
+                "oid": "57aff51ee439eb8b7a2ef088642a7407b326196d"
+              }
+            },
+            {
+              "commit": {
+                "author": {
+                  "user": {
+                    "login": "dmitriy-medme"
+                  }
+                },
+                "committer": {
+                  "user": {
+                    "login": "drodimin"
+                  }
+                },
+                "oid": "5000c7744d25512dcf468f2fd9bed61377a6ba58"
+              }
+            },
+            {
+              "commit": {
+                "author": {
+                  "user": {
+                    "login": "drodimin"
+                  }
+                },
+                "committer": {
+                  "user": {
+                    "login": "drodimin"
+                  }
+                },
+                "oid": "10d5140b044aca15206bca52e0f6fc9650654125"
+              }
+            }
+          ],
+          "totalCount": 3
+        },
+        "headRefOid": "10d5140b044aca15206bca52e0f6fc9650654125",
+        "id": "PR_kwDOVelM288AAAABMCb6eA",
+        "mergeable": "MERGEABLE",
+        "merged": false,
+        "mergedBy": null,
+        "number": 18,
+        "reviews": {
+          "nodes": [],
+          "totalCount": 0
+        },
+        "state": "OPEN",
+        "statusCheckRollup": null,
+        "timelineItems": {
+          "nodes": []
+        },
+        "url": "https://github.com/drodimin/pr-relay-fixtures/pull/18"
+      }
+    }
+  }
+}

@@ -1,0 +1,74 @@
+{
+  "data": {
+    "rateLimit": {
+      "cost": 1,
+      "limit": 5000,
+      "nodeCount": 790,
+      "remaining": 4906,
+      "resetAt": "2026-11-01T00:20:03Z",
+      "used": 94
+    },
+    "repository": {
+      "pullRequest": {
+        "baseRefOid": "30b9f179faaa8fd79d4a47eec63b6987bab9efcc",
+        "closed": false,
+        "comments": {
+          "nodes": [],
+          "totalCount": 0
+        },
+        "commits": {
+          "nodes": [
+            {
+              "commit": {
+                "author": {
+                  "user": {
+                    "login": "drodimin"
+                  }
+                },
+                "committer": {
+                  "user": {
+                    "login": "drodimin"
+                  }
+                },
+                "oid": "ba9c946475c551496adc7579f0d0a682ffe15f5e"
+              }
+            }
+          ],
+          "totalCount": 1
+        },
+        "headRefOid": "ba9c946475c551496adc7579f0d0a682ffe15f5e",
+        "id": "PR_kwDOVelM288AAAABMCYuRQ",
+        "mergeable": "UNKNOWN",
+        "merged": false,
+        "mergedBy": null,
+        "number": 6,
+        "reviews": {
+          "nodes": [],
+          "totalCount": 0
+        },
+        "state": "OPEN",
+        "statusCheckRollup": null,
+        "timelineItems": {
+          "nodes": [
+            {
+              "__typename": "HeadRefForcePushedEvent",
+              "actor": {
+                "__typename": "User",
+                "login": "drodimin"
+              },
+              "afterCommit": {
+                "oid": "ba9c946475c551496adc7579f0d0a682ffe15f5e"
+              },
+              "beforeCommit": {
+                "oid": "9289a9becbce02cde299b0cd27886f30f47be50d"
+              },
+              "createdAt": "2026-11-01T00:10:12Z",
+              "id": "HRFPE_lADOVelM288AAAABbgyVuM8AAAAIGolveA"
+            }
+          ]
+        },
+        "url": "https://github.com/drodimin/pr-relay-fixtures/pull/6"
+      }
+    }
+  }
+}
