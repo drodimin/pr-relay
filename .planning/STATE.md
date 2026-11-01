@@ -2,9 +2,9 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: verifying
-stopped_at: Completed 01-09-PLAN.md
-last_updated: "2026-11-01T22:30:10.023Z"
+status: ready_to_plan
+stopped_at: Phase 01 complete (9/9) — ready to discuss Phase 2
+last_updated: 2026-11-01T22:37:51.545Z
 last_activity: 2026-11-01
 progress:
   total_phases: 5
@@ -21,13 +21,13 @@ progress:
 See: .planning/PROJECT.md (updated 2026-10-31)
 
 **Core value:** An agent runs `pr-relay sub <PR link>` once, returns immediately, and later receives a relevant PR update in its pane without spending tokens on polling. One poller serves every agent on the machine.
-**Current focus:** Phase 01 — toolchain-spikes-pure-core
+**Current focus:** Phase 2 — durable state & github poller
 
 ## Current Position
 
-Phase: 01 (toolchain-spikes-pure-core) — EXECUTING
-Plan: 9 of 9
-Status: Phase complete — ready for verification
+Phase: 2
+Plan: Not started
+Status: Ready to plan
 Last activity: 2026-11-01
 
 Progress: [██████████] 100%
@@ -36,7 +36,7 @@ Progress: [██████████] 100%
 
 **Velocity:**
 
-- Total plans completed: 0
+- Total plans completed: 9
 - Average duration: - min
 - Total execution time: 0.0 hours
 
@@ -44,7 +44,7 @@ Progress: [██████████] 100%
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| - | - | - | - |
+| 01 | 9 | - | - |
 
 **Recent Trend:**
 
@@ -73,7 +73,7 @@ None yet.
 
 ### Blockers/Concerns
 
-- [Phase 1]: Go is not installed on the dev machine; must be installed first.
+- ~~[Phase 1]: Go is not installed on the dev machine~~ (resolved in 01-01: go1.27.3 via Homebrew)
 - [Phase 1]: Spike results (typing collision, pane/terminal_id stability, agent.wait while blocked, GraphQL cost) gate Phase 2 and 3 design.
 
 ## Deferred Items
