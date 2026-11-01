@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: executing
-stopped_at: Phase 1 context gathered
-last_updated: "2026-11-01T22:10:55.487Z"
+status: verifying
+stopped_at: Completed 01-09-PLAN.md
+last_updated: "2026-11-01T22:30:10.023Z"
 last_activity: 2026-11-01
 progress:
   total_phases: 5
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 9
-  completed_plans: 8
-  percent: 0
+  completed_plans: 9
+  percent: 20
 ---
 
 # Project State
@@ -27,10 +27,10 @@ See: .planning/PROJECT.md (updated 2026-10-31)
 
 Phase: 01 (toolchain-spikes-pure-core) — EXECUTING
 Plan: 9 of 9
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-11-01
 
-Progress: [█░░░░░░░░░] 11%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
@@ -52,6 +52,7 @@ Progress: [█░░░░░░░░░] 11%
 - Trend: -
 
 *Updated after each plan completion*
+| Phase 01 P09 | 20 min | 3 tasks | 30 files |
 
 ## Accumulated Context
 
@@ -63,6 +64,8 @@ Recent decisions affecting current work:
 - [Roadmap]: 5 horizontal-layer phases (spikes+pure core, state+poller, herdr+delivery, daemon+CLI, packaging)
 - [Roadmap]: Flow-agnostic primitives; only `--events` selects; PR link required; `keep` command for check-ins
 - [Research]: Single atomic JSON state file behind a `Store` interface; GraphQL-only polling in v1
+- [Phase 01]: [01-09] Message wording locked and user-approved (lowercase verdicts, closed: merged/closed by X, ci.settled lists all failing names, force-push links compare URL)
+- [Phase 01]: [01-09] Self-authored push/force-push filtered by EVT-08; tests assert detection on raw diff output rather than weakening the filter
 
 ### Pending Todos
 
@@ -81,6 +84,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-10-31T23:25:25.045Z
-Stopped at: Phase 1 context gathered
+Last session: 2026-11-01T22:30:00.681Z
+Stopped at: Completed 01-09-PLAN.md
 Resume file: None

@@ -21,14 +21,14 @@
 
 ### Events
 
-- [ ] **EVT-01**: Agent is notified when a CI check fails on the current head commit (`ci.failed`). The message names the failing checks and links to them, and is debounced so a flaky rerun doesn't produce duplicates.
-- [ ] **EVT-02**: Agent is notified when all checks on the current head commit have finished (`ci.settled`), with the overall result: passed or failed, with names.
-- [ ] **EVT-03**: Agent is notified when a review is submitted (`review`), including the verdict (approved / changes requested / commented), the reviewer, and a link.
-- [ ] **EVT-04**: Agent is notified of new PR comments: issue comments, review comments, and replies in review threads (`comment`). The message includes the author, the count, and links. Inline comments are grouped under their review.
-- [ ] **EVT-05**: Agent is notified when new commits are pushed to the PR head (`commits`), including after a force-push.
-- [ ] **EVT-06**: Agent is notified when the PR becomes conflicted, and again when the conflict clears (`conflict`). A merge state of UNKNOWN never triggers an event.
-- [ ] **EVT-07**: Agent is notified when the PR is merged or closed (`closed`).
-- [ ] **EVT-08**: Activity by the gh-authenticated user (their own comments, reviews, and commits) is never delivered, to prevent echo and feedback loops. Bots and other humans are treated the same.
+- [x] **EVT-01**: Agent is notified when a CI check fails on the current head commit (`ci.failed`). The message names the failing checks and links to them, and is debounced so a flaky rerun doesn't produce duplicates.
+- [x] **EVT-02**: Agent is notified when all checks on the current head commit have finished (`ci.settled`), with the overall result: passed or failed, with names.
+- [x] **EVT-03**: Agent is notified when a review is submitted (`review`), including the verdict (approved / changes requested / commented), the reviewer, and a link.
+- [x] **EVT-04**: Agent is notified of new PR comments: issue comments, review comments, and replies in review threads (`comment`). The message includes the author, the count, and links. Inline comments are grouped under their review.
+- [x] **EVT-05**: Agent is notified when new commits are pushed to the PR head (`commits`), including after a force-push.
+- [x] **EVT-06**: Agent is notified when the PR becomes conflicted, and again when the conflict clears (`conflict`). A merge state of UNKNOWN never triggers an event.
+- [x] **EVT-07**: Agent is notified when the PR is merged or closed (`closed`).
+- [x] **EVT-08**: Activity by the gh-authenticated user (their own comments, reviews, and commits) is never delivered, to prevent echo and feedback loops. Bots and other humans are treated the same.
 - [ ] **EVT-09**: Each change is delivered to a subscription at most once in normal operation. A daemon restart neither replays already-delivered events nor drops events that were detected but not yet delivered.
 
 ### Delivery (herdr)
@@ -37,8 +37,8 @@
 - [ ] **DLV-02**: Updates are held while the pane's agent is `working` or `blocked`, and delivered when it becomes idle or done. A blocked agent is never interrupted.
 - [ ] **DLV-03**: Nothing is ever delivered to a pane whose agent status is unknown or that has no agent, such as a bare shell.
 - [ ] **DLV-04**: Multiple pending updates for one pane are coalesced into a single message.
-- [ ] **DLV-05**: Messages are terse: a fixed `[pr-relay]` tag, the PR identity, what changed, names, and URLs. They never include comment bodies, review text, or log content.
-- [ ] **DLV-06**: Every PR-derived string in a message (check names, usernames, branch and PR titles) is sanitized and length-capped, with control characters and newlines stripped. This prevents prompt injection and terminal escape sequences.
+- [x] **DLV-05**: Messages are terse: a fixed `[pr-relay]` tag, the PR identity, what changed, names, and URLs. They never include comment bodies, review text, or log content.
+- [x] **DLV-06**: Every PR-derived string in a message (check names, usernames, branch and PR titles) is sanitized and length-capped, with control characters and newlines stripped. This prevents prompt injection and terminal escape sequences.
 - [ ] **DLV-07**: Messages describe the PR's current state at delivery time, so an update superseded while the agent was busy is never delivered stale. For example, a CI failure fixed by a newer push is not reported as a failure.
 - [ ] **DLV-08**: Delivery recovers when herdr restarts or the socket drops: the daemon reconnects and reconciles pane state without losing queued updates.
 - [ ] **DLV-09**: One daemon can deliver to panes in multiple herdr sessions, which have different sockets.
@@ -127,8 +127,8 @@
 | DLV-02 | Phase 3 | Pending |
 | DLV-03 | Phase 3 | Pending |
 | DLV-04 | Phase 3 | Pending |
-| DLV-05 | Phase 1 | Pending |
-| DLV-06 | Phase 1 | Pending |
+| DLV-05 | Phase 1 | Complete |
+| DLV-06 | Phase 1 | Complete |
 | DLV-07 | Phase 3 | Pending |
 | DLV-08 | Phase 3 | Pending |
 | DLV-09 | Phase 3 | Pending |
@@ -140,14 +140,14 @@
 | DMN-06 | Phase 4 | Pending |
 | DMN-07 | Phase 4 | Pending |
 | DMN-08 | Phase 4 | Pending |
-| EVT-01 | Phase 1 | Pending |
-| EVT-02 | Phase 1 | Pending |
-| EVT-03 | Phase 1 | Pending |
-| EVT-04 | Phase 1 | Pending |
-| EVT-05 | Phase 1 | Pending |
-| EVT-06 | Phase 1 | Pending |
-| EVT-07 | Phase 1 | Pending |
-| EVT-08 | Phase 1 | Pending |
+| EVT-01 | Phase 1 | Complete |
+| EVT-02 | Phase 1 | Complete |
+| EVT-03 | Phase 1 | Complete |
+| EVT-04 | Phase 1 | Complete |
+| EVT-05 | Phase 1 | Complete |
+| EVT-06 | Phase 1 | Complete |
+| EVT-07 | Phase 1 | Complete |
+| EVT-08 | Phase 1 | Complete |
 | EVT-09 | Phase 2 | Pending |
 | LIFE-01 | Phase 4 | Pending |
 | LIFE-02 | Phase 3 | Pending |
