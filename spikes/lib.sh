@@ -50,7 +50,8 @@ hr() {
 	HERDR_SOCKET_PATH="$PRSPIKE_SOCKET" HERDR_SESSION= HERDR_PANE_ID= command herdr "$@"
 }
 
-# guard_target <pane>: exit 98 unless <pane> is listed by `herdr agent list` in prspike.
+# guard_target <pane>: exit 98 unless <pane> is listed by `herdr pane list` in prspike.
+# (pane list, not agent list: a bare-shell pane is not an agent and never appears in agent list.)
 guard_target() {
 	local pane="${1:-}"
 	guard_socket
@@ -59,8 +60,8 @@ guard_target() {
 		exit 98
 	fi
 	local listing
-	if ! listing="$(hr agent list 2>&1)"; then
-		echo "GUARD: herdr agent list failed: $listing" >&2
+	if ! listing="$(hr pane list 2>&1)"; then
+		echo "GUARD: herdr pane list failed: $listing" >&2
 		exit 98
 	fi
 	local found=""
@@ -77,7 +78,7 @@ guard_target() {
 		fi
 	fi
 	if [ -z "$found" ]; then
-		echo "GUARD: pane '$pane' not found in prspike agent list; refusing" >&2
+		echo "GUARD: pane '$pane' not found in prspike pane list; refusing" >&2
 		exit 98
 	fi
 }
