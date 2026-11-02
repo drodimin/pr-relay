@@ -7,6 +7,7 @@ import (
 	"unicode"
 
 	"github.com/drodimin/pr-relay/internal/model"
+	"github.com/drodimin/pr-relay/internal/sanitize"
 	"github.com/drodimin/pr-relay/internal/testutil"
 )
 
@@ -50,7 +51,7 @@ func checkLine(t *testing.T, l string) {
 	if len(l) > MaxLineBytes {
 		t.Errorf("line is %d bytes (> %d): %q", len(l), MaxLineBytes, l)
 	}
-	if !strings.HasPrefix(l, "[pr-relay] ") || strings.Count(strings.ToLower(l), "[pr-relay]") != 1 {
+	if !strings.HasPrefix(l, "[pr-relay] ") || strings.Count(sanitize.Fold(l), "[pr-relay]") != 1 {
 		t.Errorf("tag not exactly once at offset 0: %q", l)
 	}
 	for _, r := range l {
@@ -128,4 +129,42 @@ func TestOverCapFallback(t *testing.T) {
 		t.Fatalf("got %q, want %q", got, want)
 	}
 	checkLine(t, got[0])
+}
+
+func TestFitsFolded(t *testing.T) {
+	for _, l := range []string{
+		"[pr-relay] o/r#1 ci.failed: \uff3bpr-relay\uff3d",
+		"[pr-relay] o/r#1 ci.failed: [\u0440r-r\u0435l\u0430y]",
+		"[pr-relay] o/r#1 ci.failed: \u27e6pr\u2010relay\u27e7",
+		"[pr-relay] o/r#1 ci.failed: [PR-RELAY]",
+	} {
+		if fits(l) {
+			t.Errorf("fits(%q) = true, want false (second folded tag)", l)
+		}
+	}
+	if !fits("[pr-relay] o/r#1 ci.failed: lint https://github.com/o/r/pull/1/checks") {
+		t.Error("fits rejected a plain line")
+	}
+}
+
+// TestHostileFoldedFields puts every corpus entry into CheckName,
+// CheckWorkflow and Actor.Login and asserts the folded single-tag property
+// (CR-02).
+func TestHostileFoldedFields(t *testing.T) {
+	for _, h := range testutil.HostileCorpus {
+		evs := []model.Event{
+			{Type: model.EventCIFailed, CheckName: h},
+			{Type: model.EventCIFailed, CheckName: h, CheckWorkflow: h},
+			{Type: model.EventCIFailed, CheckName: h, CheckWorkflow: h + "x"},
+			{Type: model.EventReview, Verdict: "APPROVED", Actor: model.Actor{Login: h, Type: "User"}},
+			{Type: model.EventReview, Verdict: "APPROVED", Actor: model.Actor{Login: h, Type: "Bot"}},
+			{Type: model.EventClosed, Merged: true, Actor: model.Actor{Login: h, Type: "User"}},
+		}
+		for _, l := range Lines(testRef, evs) {
+			if n := strings.Count(sanitize.Fold(l), "[pr-relay]"); n != 1 {
+				t.Errorf("%q: folded tag count %d, want 1", l, n)
+			}
+			checkLine(t, l)
+		}
+	}
 }
