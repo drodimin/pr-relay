@@ -330,8 +330,9 @@ func TestBatchFixturesHaveNoBodies(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(files) != 4 {
-		t.Fatalf("found %d batch fixtures, want 4", len(files))
+	// 4 synthetic batch fixtures plus the live capture batch-live.json (plan 02-12).
+	if len(files) != 5 {
+		t.Fatalf("found %d batch fixtures, want 5", len(files))
 	}
 	for _, f := range files {
 		raw, err := os.ReadFile(f)
