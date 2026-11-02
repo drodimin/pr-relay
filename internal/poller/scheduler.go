@@ -77,6 +77,13 @@ func (e *Engine) planLocked(now time.Time) ([]string, time.Duration) {
 	p := e.cfg.Poll
 	minI, maxI, maxS := p.MinInterval.Duration, p.MaxInterval.Duration, p.MaxStretchedInterval.Duration
 
+	// GitHub refills the primary budget at resetAt. Without a new response
+	// the last observed Remaining (possibly 0 after an exhausted limit) would
+	// keep every interval stretched to the low-budget ceiling.
+	if b := e.budget; !b.ResetAt.IsZero() && !now.Before(b.ResetAt) && b.Remaining < b.Limit {
+		b.Remaining = b.Limit
+	}
+
 	subscribed := map[string]bool{}
 	for _, s := range e.state.Subs {
 		subscribed[s.PR] = true
