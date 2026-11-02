@@ -9,15 +9,16 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 )
 
 var nameRE = regexp.MustCompile(`^[A-Za-z0-9._-]{1,100}$`)
 
 // PRRef identifies a single pull request on github.com.
 type PRRef struct {
-	Owner  string
-	Repo   string
-	Number int
+	Owner  string `json:"owner"`
+	Repo   string `json:"repo"`
+	Number int    `json:"number"`
 }
 
 // String returns "owner/repo#N".
@@ -28,9 +29,15 @@ func (r PRRef) URL() string {
 	return fmt.Sprintf("https://github.com/%s/%s/pull/%d", r.Owner, r.Repo, r.Number)
 }
 
-// Valid reports whether Owner and Repo match ^[A-Za-z0-9._-]{1,100}$ and Number > 0.
+// Valid reports whether Owner and Repo match ^[A-Za-z0-9._-]{1,100}$, are not
+// "." or "..", and Number > 0. Rejecting the dot segments keeps a ref from
+// ever acting as a path traversal component in a persistence key (WR-07).
 func (r PRRef) Valid() bool {
-	return nameRE.MatchString(r.Owner) && nameRE.MatchString(r.Repo) && r.Number > 0
+	return validName(r.Owner) && validName(r.Repo) && r.Number > 0
+}
+
+func validName(s string) bool {
+	return s != "." && s != ".." && nameRE.MatchString(s)
 }
 
 // ParsePRURL accepts only https://github.com/{owner}/{repo}/pull/{n}, with an
@@ -85,8 +92,8 @@ func ParsePRURL(u string) (PRRef, error) {
 // "Mannequin", "Organization"), "Ghost" for a null author, or "" when a commit
 // author is unknown.
 type Actor struct {
-	Login string
-	Type  string
+	Login string `json:"login"`
+	Type  string `json:"type"`
 }
 
 // IsUser reports whether the actor is a real user account (Type == "User").
@@ -94,7 +101,7 @@ func (a Actor) IsUser() bool { return a.Type == "User" }
 
 // CheckRun is one Checks API check run on the head commit.
 type CheckRun struct {
-	Key        string // Workflow+"/"+Name when Workflow != "", else App+"/"+Name
+	Key        string // Workflow+"/"+Name(+"@"+Event when Event != "") when Workflow != "", else App+"/"+Name
 	Name       string
 	Workflow   string
 	App        string
@@ -104,6 +111,7 @@ type CheckRun struct {
 	URL        string
 	DetailsURL string
 	RunAttempt int
+	Event      string // checkSuite.workflowRun.event ("push", "pull_request", ...), "" when absent
 }
 
 // ReviewComment is an inline comment attached to a review. It carries no body.
@@ -124,13 +132,15 @@ type Review struct {
 	HasBody       bool
 	Comments      []ReviewComment
 	CommentsTotal int
+	SubmittedAt   time.Time // submittedAt, zero for PENDING or unparseable
 }
 
 // IssueComment is a top-level PR conversation comment. It carries no body.
 type IssueComment struct {
-	ID     string
-	URL    string
-	Author Actor
+	ID        string
+	URL       string
+	Author    Actor
+	CreatedAt time.Time // createdAt, zero when absent or unparseable
 }
 
 // Commit is one commit on the PR head branch. Author comes from
@@ -202,64 +212,80 @@ func (t EventType) Rank() int {
 
 // Event is one detected PR update. Only the fields relevant to Type are set.
 type Event struct {
-	Type  EventType
-	Key   string // stable dedupe key
-	Actor Actor
-	URL   string
+	Type  EventType `json:"type"`
+	Key   string    `json:"key"` // stable dedupe key
+	Actor Actor     `json:"actor,omitempty"`
+	URL   string    `json:"url,omitempty"`
 
 	// ci.failed (HeadOID also on ci.settled and commits)
-	CheckName     string
-	CheckWorkflow string
-	CheckURL      string
-	HeadOID       string
+	CheckName     string `json:"check_name,omitempty"`
+	CheckWorkflow string `json:"check_workflow,omitempty"`
+	CheckURL      string `json:"check_url,omitempty"`
+	HeadOID       string `json:"head_oid,omitempty"`
 
 	// ci.settled
-	Passed      bool
-	Total       int
-	FailedNames []string
+	Passed      bool     `json:"passed,omitempty"`
+	Total       int      `json:"total,omitempty"`
+	FailedNames []string `json:"failed_names,omitempty"`
 
 	// review: Verdict is the raw GraphQL state (APPROVED|CHANGES_REQUESTED|COMMENTED|DISMISSED)
-	Verdict     string
-	InlineCount int
+	Verdict     string `json:"verdict,omitempty"`
+	InlineCount int    `json:"inline_count,omitempty"`
 
 	// comment: CommentKind is "comment" (issue), "reply" (thread reply) or
 	// "inline" (non-reply inline on an already-seen review)
-	CommentKind string
-	Path        string
+	CommentKind string `json:"comment_kind,omitempty"`
+	Path        string `json:"path,omitempty"`
 
 	// commits: Count 0 = unknown
-	OldHeadOID  string
-	Count       int
-	ForcePushed bool
-	Authors     []Actor
+	OldHeadOID  string  `json:"old_head_oid,omitempty"`
+	Count       int     `json:"count,omitempty"`
+	ForcePushed bool    `json:"force_pushed,omitempty"`
+	Authors     []Actor `json:"authors,omitempty"`
 
 	// conflict: true = became conflicting, false = cleared
-	Conflicting bool
+	Conflicting bool `json:"conflicting,omitempty"`
 
 	// closed
-	Merged bool
+	Merged bool `json:"merged,omitempty"`
 }
 
-// Memory is the per-PR diff state carried between steps.
+// Memory is the per-PR diff state carried between steps. It is schema v1,
+// persisted by internal/store as JSON; the field set is final for Phase 2 and
+// later Phase 2 plans must not add Memory fields.
 type Memory struct {
-	Baselined       bool
-	HeadOID         string
-	BaseOID         string
-	State           string
-	Mergeable       string          // last RESOLVED value, "" = never resolved
-	FailedReported  map[string]bool // CheckRun.Key -> ci.failed emitted for HeadOID
-	SettleCandidate string          // fingerprint of all-complete check set seen last step, "" none
-	SettledResult   string          // "" | "passed" | "failed:<sorted,comma,joined,keys>"
-	SettleSeq       int
-	SeenReviews     map[string]bool
-	SeenComments    map[string]bool
-	SeenForcePushes map[string]bool
-	ReviewsTotal    int
-	CommentsTotal   int
+	Baselined       bool            `json:"baselined"`
+	HeadOID         string          `json:"head_oid"`
+	BaseOID         string          `json:"base_oid"`
+	State           string          `json:"state"`
+	Mergeable       string          `json:"mergeable"`        // last RESOLVED value, "" = never resolved
+	FailedReported  map[string]bool `json:"failed_reported"`  // CheckRun.Key -> ci.failed emitted for HeadOID
+	SettleCandidate string          `json:"settle_candidate"` // fingerprint of all-complete check set seen last step, "" none
+	SettledResult   string          `json:"settled_result"`   // "" | "passed" | "failed:<sorted,comma,joined,keys>"
+	SettleSeq       int             `json:"settle_seq"`
+	SeenReviews     map[string]bool `json:"seen_reviews"`
+	SeenComments    map[string]bool `json:"seen_comments"`
+	SeenForcePushes map[string]bool `json:"seen_force_pushes"`
+	ReviewsTotal    int             `json:"reviews_total"`
+	CommentsTotal   int             `json:"comments_total"`
+
+	Epoch               int            `json:"epoch"`                 // WR-02: bumped on every head change and every state transition
+	CommitsTotal        int            `json:"commits_total"`         // WR-01: last seen Snapshot.CommitsTotal
+	CommentsWatermark   time.Time      `json:"comments_watermark"`    // CR-01: max issue-comment createdAt seen
+	ReviewsWatermark    time.Time      `json:"reviews_watermark"`     // CR-01: max submittedAt of non-PENDING reviews seen
+	ReviewCommentTotals map[string]int `json:"review_comment_totals"` // WR-06: review ID -> last seen Review.CommentsTotal
 }
 
 func cloneSet(m map[string]bool) map[string]bool {
 	out := make(map[string]bool, len(m))
+	for k, v := range m {
+		out[k] = v
+	}
+	return out
+}
+
+func cloneCounts(m map[string]int) map[string]int {
+	out := make(map[string]int, len(m))
 	for k, v := range m {
 		out[k] = v
 	}
@@ -273,5 +299,6 @@ func (m Memory) Clone() Memory {
 	c.SeenReviews = cloneSet(m.SeenReviews)
 	c.SeenComments = cloneSet(m.SeenComments)
 	c.SeenForcePushes = cloneSet(m.SeenForcePushes)
+	c.ReviewCommentTotals = cloneCounts(m.ReviewCommentTotals)
 	return c
 }
