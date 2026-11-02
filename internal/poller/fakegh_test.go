@@ -50,6 +50,8 @@ type fakeGH struct {
 	// PR before answering, so every poll sees fresh activity.
 	churn  bool
 	churnN int
+	// costFn, when set, gives the cost of a request for n PRs.
+	costFn func(n int) int
 
 	// block, when non-nil, makes RoundTrip signal entered and then wait for
 	// block to be closed (or the request context to end).
@@ -318,6 +320,9 @@ func (f *fakeGH) RoundTrip(req *http.Request) (*http.Response, error) {
 		return f.response(req, r.status, r.header, r.body), nil
 	}
 
+	if f.costFn != nil {
+		f.cost = f.costFn(len(keys))
+	}
 	f.reqCost[len(f.reqCost)-1] = f.cost
 	if f.churn {
 		for _, k := range keys {
@@ -333,6 +338,8 @@ func (f *fakeGH) RoundTrip(req *http.Request) (*http.Response, error) {
 				"createdAt": time.Now().UTC().Format(time.RFC3339),
 				"author":    actorJSON("alice", "User"),
 			})
+			// Keep the stored history short; totalCount still grows.
+			lastN(pr["comments"].(map[string]any), 3)
 		}
 	}
 	data := map[string]any{
