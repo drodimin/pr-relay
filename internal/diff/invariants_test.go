@@ -262,6 +262,53 @@ var scenarioChecks = map[string]func(t *testing.T, self string, steps []stepOutp
 			t.Errorf("closed = %+v, want Merged", c[0].Event)
 		}
 	},
+	"delete-comment-31": func(t *testing.T, self string, steps []stepOutput) {
+		// CR-01: the comment sliding into the window after a deletion is history.
+		wantN(t, "raw at 01 (slide-in)", where(raw(steps), func(e ev) bool { return strings.HasPrefix(e.File, "01-") }), 0)
+		c := where(delivered(steps), ofType(model.EventComment))
+		wantN(t, "comment", c, 1)
+		if len(c) == 1 && (!strings.HasPrefix(c[0].File, "02-") || c[0].Actor.Login != second) {
+			t.Errorf("comment = %+v at %s, want by %s at 02-*", c[0].Event, c[0].File, second)
+		}
+		for _, s := range steps {
+			if s.Gap {
+				t.Errorf("step %s: unexpected gap", s.File)
+			}
+		}
+	},
+	"reopen-close": func(t *testing.T, self string, steps []stepOutput) {
+		c := where(delivered(steps), ofType(model.EventClosed))
+		wantN(t, "closed (WR-02)", c, 2)
+		if len(c) == 2 {
+			if c[0].Key == c[1].Key {
+				t.Errorf("closed keys collide: %q", c[0].Key)
+			}
+			if c[0].Actor.Login != second || !strings.EqualFold(c[1].Actor.Login, self) {
+				t.Errorf("closed actors = %s, %s; want %s then %s", c[0].Actor.Login, c[1].Actor.Login, second, self)
+			}
+		}
+	},
+	"big-push-30": func(t *testing.T, self string, steps []stepOutput) {
+		c := where(delivered(steps), ofType(model.EventCommits))
+		wantN(t, "commits (WR-01)", c, 1)
+		if len(c) == 1 && (c[0].ForcePushed || c[0].Count != 32) {
+			t.Errorf("commits = %+v, want Count 32 not force-pushed", c[0].Event)
+		}
+	},
+	"parallel-trigger": func(t *testing.T, self string, steps []stepOutput) {
+		// WR-05: a failing push run is not masked by a passing pull_request run.
+		wantN(t, "ci.failed test", where(delivered(steps), failedCheck("test")), 1)
+		wantN(t, "ci.failed total", where(delivered(steps), ofType(model.EventCIFailed)), 1)
+		settledOnce(t, steps, false)
+	},
+	"review-comments-31": func(t *testing.T, self string, steps []stepOutput) {
+		wantN(t, "all delivered", delivered(steps), 0)
+		for _, s := range steps {
+			if strings.HasPrefix(s.File, "01-") && !s.Gap {
+				t.Errorf("step %s: Gap = false, want true (WR-06)", s.File)
+			}
+		}
+	},
 	"closed": func(t *testing.T, self string, steps []stepOutput) {
 		c := where(delivered(steps), ofType(model.EventClosed))
 		wantN(t, "closed (D-20: delivered even when self closed it)", c, 1)

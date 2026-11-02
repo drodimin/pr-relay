@@ -1,0 +1,6 @@
+step 01-closed-by-second:
+[pr-relay] drodimin/pr-relay-fixtures#8 closed: closed by dmitriy-medme https://github.com/drodimin/pr-relay-fixtures/pull/8
+step 02-reopened:
+step 03-closed-by-self:
+[pr-relay] drodimin/pr-relay-fixtures#8 closed: closed by drodimin https://github.com/drodimin/pr-relay-fixtures/pull/8
+step replay 03-closed-by-self:

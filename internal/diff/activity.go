@@ -23,14 +23,33 @@ import "github.com/drodimin/pr-relay/internal/model"
 // fixtures. If replies turn out to arrive without a wrapper review, the
 // "new comment on an already-seen review" path already covers them.
 //
+// Watermarks (CR-01): CommentsWatermark is the newest issue-comment createdAt
+// seen so far and ReviewsWatermark the newest submittedAt of a non-PENDING
+// review. Deleting a recent item lets an older one slide into the snapshot
+// window with an ID never seen before. An unseen item strictly older than the
+// watermark is therefore history: it is marked seen and emits nothing (a
+// review skipped this way also has its inline comments marked seen). The
+// comparison is strict because GitHub timestamps have one-second resolution,
+// so a genuinely new item in the same second as the watermark still fires
+// (pitfall 4). Items with a zero (missing) timestamp always fire. PENDING
+// reviews never move or consult the review watermark. Watermarks advance
+// after the comparison loop, to the max of themselves and every visible
+// timestamp.
+//
 // Gap: when ReviewsTotal or CommentsTotal grows by more than the number of new
 // IDs visible in the snapshot window, gap is true and no extra event is
-// emitted. Phase 2 paginates on it. Totals are updated on every step.
+// emitted. The same applies per review (WR-06): when a seen review's
+// CommentsTotal grows by more than its newly visible comment IDs, gap is true.
+// Items skipped by a watermark do not count as new. Totals are updated on
+// every step. On a gap the poller re-fetches with wide windows before it
+// commits the step (plan 02-09, RESEARCH Pattern 8).
 //
-// Deferred to Phase 2 (persistence owns Memory size): SeenReviews and
-// SeenComments are never pruned. They grow with PR activity (tens to hundreds
-// of IDs per PR).
+// Deferred (RESEARCH open question 2): SeenReviews and SeenComments are never
+// pruned. They grow with PR activity (tens to hundreds of IDs per PR).
 func stepActivity(m *model.Memory, s model.Snapshot) (events []model.Event, gap bool) {
+	if m.ReviewCommentTotals == nil {
+		m.ReviewCommentTotals = map[string]int{}
+	}
 	newReviews := 0
 	for _, r := range s.Reviews {
 		if r.State == "PENDING" {
@@ -41,12 +60,26 @@ func stepActivity(m *model.Memory, s model.Snapshot) (events []model.Event, gap 
 			}
 			continue
 		}
+		prevTotal, known := m.ReviewCommentTotals[r.ID]
+		m.ReviewCommentTotals[r.ID] = r.CommentsTotal
 		if m.SeenReviews[r.ID] {
-			events = append(events, lateComments(m, r)...)
+			late := lateComments(m, r)
+			// WR-06: more inline comments arrived than are visible.
+			if known && r.CommentsTotal-prevTotal > len(late) {
+				gap = true
+			}
+			events = append(events, late...)
+			continue
+		}
+		m.SeenReviews[r.ID] = true
+		if !r.SubmittedAt.IsZero() && r.SubmittedAt.Before(m.ReviewsWatermark) {
+			// CR-01: an old review slid into the window. History, not news.
+			for _, c := range r.Comments {
+				m.SeenComments[c.ID] = true
+			}
 			continue
 		}
 		newReviews++
-		m.SeenReviews[r.ID] = true
 		if isRealReview(r) {
 			for _, c := range r.Comments {
 				m.SeenComments[c.ID] = true
@@ -69,13 +102,23 @@ func stepActivity(m *model.Memory, s model.Snapshot) (events []model.Event, gap 
 		events = append(events, lateComments(m, r)...)
 	}
 
+	for _, r := range s.Reviews {
+		if r.State != "PENDING" && r.SubmittedAt.After(m.ReviewsWatermark) {
+			m.ReviewsWatermark = r.SubmittedAt
+		}
+	}
+
 	newComments := 0
 	for _, c := range s.Comments {
 		if m.SeenComments[c.ID] {
 			continue
 		}
-		newComments++
 		m.SeenComments[c.ID] = true
+		if !c.CreatedAt.IsZero() && c.CreatedAt.Before(m.CommentsWatermark) {
+			// CR-01: an old comment slid into the window after a deletion.
+			continue
+		}
+		newComments++
 		events = append(events, model.Event{
 			Type:        model.EventComment,
 			Key:         "comment:" + c.ID,
@@ -83,6 +126,12 @@ func stepActivity(m *model.Memory, s model.Snapshot) (events []model.Event, gap 
 			URL:         c.URL,
 			CommentKind: "comment",
 		})
+	}
+
+	for _, c := range s.Comments {
+		if c.CreatedAt.After(m.CommentsWatermark) {
+			m.CommentsWatermark = c.CreatedAt
+		}
 	}
 
 	if s.ReviewsTotal-m.ReviewsTotal > newReviews || s.CommentsTotal-m.CommentsTotal > newComments {

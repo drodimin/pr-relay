@@ -59,6 +59,11 @@ replaying them again emits nothing.
 | synthetic-mergeable-unknown-mergeable | synthetic | #16 | - | 00 = mergeable-unknown/02 with mergeable set to UNKNOWN. 01 = the original MERGEABLE. 02 = UNKNOWN again (D-21) |
 | synthetic-startup-failure | synthetic | #1 | - | 00 = ci-fail-pass/05 (running). 01 = ci-fail-pass/08 with CI/test set to STARTUP_FAILURE. 02 = the same again for settle |
 | synthetic-many-failures | synthetic | #1 | - | 00 = ci-fail-pass/05 (running). 01 = ci-fail-pass/08 with CI/test expanded to 9 failing check runs `test-1`..`test-9` (distinct names, ids, databaseIds and check-run urls). 02 = the same again for settle (D-03) |
+| delete-comment-31 | synthetic (plan 02-03) | #10 | dmitriy-medme | 00 = issue-comment/01 with 31 comments, the newest 30 in the window. 01 = the newest deleted, so the oldest slides in (silent, CR-01). 02 = one genuinely new comment (one line) |
+| reopen-close | synthetic (plan 02-03) | #8 | dmitriy-medme, drodimin | 00 = closed/00. 01 = closed by the second human. 02 = reopened. 03 = closed by self. Two closed lines with distinct keys (WR-02) |
+| big-push-30 | synthetic (plan 02-03) | #18 | dmitriy-medme | 00 = push-mixed-authors/00 with commits total 3. 01 = 32-commit fast-forward push, 30 visible, old head out of the window, no force-push item: a plain "32 new" commits line (WR-01) |
+| parallel-trigger | synthetic (plan 02-03) | #1 | - | 00 = ci-fail-pass/05 tagged `pull_request`. 01 = ci-fail-pass/08 plus a failing push-triggered CI/test next to the passing pull_request one. 02 = settle repeat. ci.failed test, then a failed ci.settled (WR-05) |
+| review-comments-31 | synthetic (plan 02-03) | #9 | dmitriy-medme | 00 = review-commented/01 with the review holding 30 inline comments. 01 = review comments total 31, visible first 30 unchanged: no lines, Gap set (WR-06) |
 
 ## Expected events
 

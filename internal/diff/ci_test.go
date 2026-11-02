@@ -45,7 +45,7 @@ func TestCIFailedOncePerSHA(t *testing.T) {
 	}
 	e := f[0]
 	if e.CheckName != "test" || e.CheckWorkflow != "ci" || e.CheckURL != "https://github.com/o/r/runs/1" ||
-		e.HeadOID != "h1" || e.Key != "ci.failed:h1:ci/test" {
+		e.HeadOID != "h1" || e.Key != "ci.failed:0:h1:ci/test" {
 		t.Fatalf("ci.failed fields wrong: %+v", e)
 	}
 	if n := len(ofType(steps[1], model.EventCIFailed)); n != 0 {
@@ -96,7 +96,7 @@ func TestCIFailedResetOnNewHead(t *testing.T) {
 		snap(withHead("h2"), withCommits("h1", "h2"), withCheck("ci/test", cDone, "FAILURE", 3)),
 	)
 	f := ofType(flatten(steps), model.EventCIFailed)
-	if len(f) != 2 || f[1].Key != "ci.failed:h2:ci/test" || f[1].HeadOID != "h2" {
+	if len(f) != 2 || f[1].Key != "ci.failed:1:h2:ci/test" || f[1].HeadOID != "h2" {
 		t.Fatalf("D-06 reset: %+v", f)
 	}
 }
@@ -120,7 +120,7 @@ func TestSettledConfirmation(t *testing.T) {
 	}
 	e := s[0]
 	if e.Passed || e.Total != 2 || !reflect.DeepEqual(e.FailedNames, []string{"test"}) ||
-		e.HeadOID != "h1" || e.Key != "ci.settled:h1:1" {
+		e.HeadOID != "h1" || e.Key != "ci.settled:0:h1:1" {
 		t.Fatalf("settled fields wrong: %+v", e)
 	}
 	if len(steps[2]) != 0 {
@@ -196,10 +196,10 @@ func TestSettledRearmD19(t *testing.T) {
 	if len(s) != 2 {
 		t.Fatalf("want 2 settled, got %+v", s)
 	}
-	if s[0].Passed || s[0].Key != "ci.settled:h1:1" {
+	if s[0].Passed || s[0].Key != "ci.settled:0:h1:1" {
 		t.Fatalf("first settled: %+v", s[0])
 	}
-	if !s[1].Passed || s[1].Key != "ci.settled:h1:2" || len(s[1].FailedNames) != 0 {
+	if !s[1].Passed || s[1].Key != "ci.settled:0:h1:2" || len(s[1].FailedNames) != 0 {
 		t.Fatalf("second settled: %+v", s[1])
 	}
 }
