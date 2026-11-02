@@ -12,6 +12,11 @@
 // belong to Phase 3 delivery, after spike S6 measures how herdr handles
 // multi-line and large prompts. That layer owns the prompt size, so it owns
 // the ceiling too (D-02, D-03).
+//
+// The tag guard (fits) counts the tag in sanitize.Fold of the whole line, so a
+// lookalike second tag ("［pr-relay］", Cyrillic letters, Unicode brackets)
+// formed anywhere in the line, including across field boundaries, forces the
+// minimal fallback line (CR-02).
 package render
 
 import (
@@ -137,9 +142,10 @@ func (r renderer) line(e model.Event) (string, bool) {
 	return l, true
 }
 
-// fits reports whether l fits the cap and carries exactly one tag, at offset 0.
+// fits reports whether l fits the cap and carries exactly one tag in folded
+// form (the prefix tag at offset 0).
 func fits(l string) bool {
-	return len(l) <= MaxLineBytes && strings.Count(strings.ToLower(l), tag) == 1
+	return len(l) <= MaxLineBytes && strings.Count(sanitize.Fold(l), tag) == 1
 }
 
 func (r renderer) checkName(e model.Event) string {

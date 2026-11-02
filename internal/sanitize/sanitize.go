@@ -18,12 +18,19 @@
 //   - Tag neutralization runs last, after stripping, so invisible characters
 //     cannot be used to split and later reassemble the tag.
 //   - '[' and ']' are kept in general, because bot logins render as name[bot].
+//   - Confusable fold (CR-02): tag matching compares Fold(s), not s. Fold
+//     applies NFKC per rune, lowercases, and maps Cyrillic/Greek lookalikes
+//     of the tag letters and Unicode brackets/hyphens to ASCII, so
+//     "［pr-relay］", "[рr-rеlаy]" and "⟦pr‐relay⟧" are all neutralized. The
+//     reader of relay lines is an LLM, which reads such lookalikes as the tag.
+//   - Invisible fillers (IN-01): U+3164, U+115F, U+1160, U+FFA0 and U+2800
+//     are printable per unicode.IsPrint but render blank, so they are
+//     stripped explicitly; they cannot split a tag or blank a login.
 //
 // Every function is pure, deterministic and idempotent.
 package sanitize
 
 import (
-	"strings"
 	"unicode"
 	"unicode/utf8"
 )
@@ -55,7 +62,7 @@ func clean(s string, limit int) []rune {
 		case unicode.IsSpace(r):
 			pendingSpace = true
 			continue
-		case !unicode.IsPrint(r), unicode.Is(unicode.Variation_Selector, r):
+		case !unicode.IsPrint(r), unicode.Is(unicode.Variation_Selector, r), isFiller(r):
 			continue
 		}
 		isMark := unicode.In(r, unicode.Mn, unicode.Me)
@@ -81,6 +88,19 @@ func clean(s string, limit int) []rune {
 		out = append(out, r)
 	}
 	return out
+}
+
+// isFiller reports whether r is a printable-but-invisible filler (IN-01).
+func isFiller(r rune) bool {
+	switch r {
+	case 0x3164, // U+3164 Hangul filler
+		0x115F, // Hangul choseong filler
+		0x1160, // Hangul jungseong filler
+		0xFFA0, // halfwidth Hangul filler
+		0x2800: // braille pattern blank
+		return true
+	}
+	return false
 }
 
 func trimSpaceRunes(rs []rune) []rune {
@@ -129,10 +149,12 @@ func Path(s string, maxRunes int) string {
 
 var tagRunes = []rune("[pr-relay]")
 
-// NeutralizeTag replaces every case-insensitive "[pr-relay]" in s with
-// "(pr-relay)", preserving the original letter case. It is length-preserving.
+// NeutralizeTag replaces every run of runes in s that folds to "[pr-relay]"
+// (see Fold: case, NFKC and lookalike insensitive) by turning its first rune
+// into '(' and its last into ')', keeping the inner runes as they were. It
+// preserves the rune count.
 func NeutralizeTag(s string) string {
-	if !strings.ContainsRune(s, '[') {
+	if !hasOpenBracket(s) {
 		return s
 	}
 	rs := []rune(s)
@@ -140,7 +162,7 @@ func NeutralizeTag(s string) string {
 	for i := 0; i+len(tagRunes) <= len(rs); i++ {
 		match := true
 		for j, want := range tagRunes {
-			if unicode.ToLower(rs[i+j]) != want {
+			if foldRune(rs[i+j]) != want {
 				match = false
 				break
 			}
@@ -156,4 +178,14 @@ func NeutralizeTag(s string) string {
 		return s
 	}
 	return string(rs)
+}
+
+// hasOpenBracket reports whether any rune of s folds to '['.
+func hasOpenBracket(s string) bool {
+	for _, r := range s {
+		if r == '[' || (r >= utf8.RuneSelf && foldRune(r) == '[') {
+			return true
+		}
+	}
+	return false
 }
