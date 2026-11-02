@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"sort"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/drodimin/pr-relay/internal/config"
@@ -167,6 +168,14 @@ type Engine struct {
 	wake     chan struct{}
 	onCommit func(CommitReport)
 	now      func() time.Time
+
+	// Scheduler and Status state (scheduler.go, status.go), guarded by mu.
+	auth        AuthState
+	authRetryAt time.Time
+	quarPath    string
+	quarAt      time.Time
+	// running makes a second concurrent Run fail instead of racing.
+	running atomic.Bool
 }
 
 // New returns an Engine over o.State. The engine owns o.State from now on.
