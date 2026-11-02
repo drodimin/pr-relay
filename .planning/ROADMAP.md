@@ -88,7 +88,7 @@ Plans:
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
-- [ ] 02-09-PLAN.md — poller Engine: registry/upsert, transactional-outbox commit, fan-out, primitives
+- [x] 02-09-PLAN.md — poller Engine: registry/upsert, transactional-outbox commit, fan-out, primitives
 
 **Wave 5** *(blocked on Wave 4 completion)*
 
@@ -151,7 +151,7 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Toolchain, Spikes & Pure Core | 9/9 | Complete   | 2026-11-01 |
-| 2. Durable State & GitHub Poller | 8/12 | In Progress|  |
+| 2. Durable State & GitHub Poller | 9/12 | In Progress|  |
 | 3. herdr Client & Delivery | 0/TBD | Not started | - |
 | 4. Daemon, Control Protocol & CLI | 0/TBD | Not started | - |
 | 5. Packaging, Plugin & Agent Skill | 0/TBD | Not started | - |
