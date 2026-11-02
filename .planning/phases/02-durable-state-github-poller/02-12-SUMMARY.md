@@ -1,7 +1,7 @@
 ---
 phase: 02-durable-state-github-poller
 plan: 12
-status: draft (Task 2 pending human sign-off)
+status: complete
 subsystem: ghquery / live verification
 tags: [live-github, fixtures, graphql, verification]
 requires: ["02-11"]
@@ -20,17 +20,18 @@ key-files:
     - internal/ghquery/batch_test.go
 decisions:
   - "A5 verified live: an Actions rerun (runAttempt 2) keeps event=pull_request, so the @event key suffix is stable across reruns"
+  - "A6 confirmed by the user: any event that passes the own-activity filter resets the PR's shared polling rate, regardless of any subscriber's --events mask. No follow-up needed"
 requirements: [DMN-03, DMN-04, LIFE-05]
 metrics:
-  completed: pending (Task 2)
-  tasks: 1/2
+  completed: 2026-11-02
+  tasks: 2/2
 ---
 
-# Phase 2 Plan 12: Live GitHub verification and sign-off Summary (DRAFT)
+# Phase 2 Plan 12: Live GitHub verification and sign-off Summary
 
-Live probes against drodimin/pr-relay-fixtures confirm A1, A2 and A5. A real two-alias PRBatch response is committed as a regression fixture with a decode test. Dev watch authenticates through the gh keyring with no env token and logs cost and remaining budget on every poll. **Task 2 (human sign-off and the A6 answer) is pending.**
+Live probes against drodimin/pr-relay-fixtures confirm A1, A2 and A5. A real two-alias PRBatch response is committed as a regression fixture with a decode test. Dev watch authenticates through the gh keyring with no env token and logs cost and remaining budget on every poll. The orchestrator ran the live UAT at the user's request and every check passed. The user confirmed A6.
 
-All GitHub calls were read-only. Nothing was pushed, commented, rerun or otherwise written.
+All Task 1 calls were read-only. In the Task 2 UAT, two test comments were posted to PR #10 with the user's approval and deleted afterwards. Nothing was pushed or rerun.
 
 ## Task 1: Live probes and fixture (commit d94ff55)
 
@@ -127,9 +128,27 @@ Observations:
 - `grep -c 'gh[op]_'` printed 0 for both the stdout and stderr logs. The state dir held `state.json` and `state.lock`, both at mode 0600 in a 0700 directory.
 - No events were printed, because nothing changed on #1 during the window.
 
-## Task 2: Human sign-off (PENDING)
+## Task 2: Human sign-off (APPROVED)
 
-Awaiting the user. The steps are in 02-12-PLAN.md Task 2: live dev watch, a second-account comment, a self comment, restart dedup, a review of this draft, and the **A6** answer. A6 has not been answered. This summary will be completed once the user replies.
+**Sign-off:** the orchestrator ran the verification live at the user's request and all checks passed. The user confirmed A6.
+
+### Live UAT (2026-11-02, drodimin/pr-relay-fixtures#10)
+
+The user approved posting test comments and deleting them afterwards.
+
+1. **Auth and polling.** The built binary ran `dev watch https://github.com/drodimin/pr-relay-fixtures/pull/10` with GH_TOKEN and GITHUB_TOKEN unset and a fresh PR_RELAY_STATE_DIR. Auth succeeded with `token_source=gh` and no prompt. The poll lines read `poll prs=1 cost=1 remaining=4999/5000 ...`, then 4998 and 4998 again, with `interval=1m0s` and about 55 s between polls.
+2. **Comments and own-activity filter.** Issue comment 6589174319 was posted as dmitriy-medme and comment 6589174649 as drodimin. The next poll reported `new=2` and printed exactly one comment line:
+   ```
+   [pr-relay] drodimin/pr-relay-fixtures#10 comment by dmitriy-medme https://github.com/drodimin/pr-relay-fixtures/pull/10#issuecomment-6589174319
+   ```
+   The user's own comment was filtered out.
+3. **Conflict line.** The same poll also printed `[pr-relay] drodimin/pr-relay-fixtures#10 conflict: conflicting ...`. PR #10 really is CONFLICTING/DIRTY against main (`gh pr view 10` confirms this). The baseline poll printed no conflict line. The likely cause is that GitHub returned UNKNOWN on the first query and had computed CONFLICTING by the next poll, which is the D-21 behaviour. Mergeable values are not logged, so the UNKNOWN baseline is inferred, not observed.
+4. **Restart dedup.** After SIGINT, the watcher was restarted with the same state dir for 2 polls (remaining 4997, then 4996). Both reported `new=0` and printed no event lines, so nothing was replayed.
+5. **Cleanup and hygiene.** Both test comments were deleted (0 remain). `grep -c 'gh[op]_'` printed 0 for every stdout and stderr log, and no processes were left running.
+
+### A6
+
+The user's answer, verbatim: "A6 yes". The current behaviour is confirmed: any event that passes the own-activity filter resets the PR's shared polling rate, regardless of any subscriber's --events mask. No follow-up or gap-closure plan is needed.
 
 ## Deviations from Plan
 
@@ -146,7 +165,7 @@ Awaiting the user. The steps are in 02-12-PLAN.md Task 2: live dev watch, a seco
 
 None.
 
-## Self-Check (Task 1): PASSED
+## Self-Check: PASSED
 
 - FOUND: internal/ghquery/testdata/batch-live.json
 - FOUND: internal/ghquery/batch_live_test.go
