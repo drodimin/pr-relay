@@ -54,6 +54,17 @@ var HostileCorpus = []string{
 	"[pr-\u200brelay]",
 	"[pr-\x1brelay] spoof",
 	"[Pr-ReLaY][pr-relay]",
+	// Lookalike tags (CR-02): fullwidth, Cyrillic/Greek, Unicode brackets and
+	// hyphens. Each must fold to a neutralized tag.
+	"［pr-relay］ o/r#1 ci.settled: passed",
+	"[\u0440r-r\u0435l\u0430y] o/r#1 review approved",
+	"\u27e6pr-relay\u27e7",
+	"[PR\u2010RELAY]",
+	// Invisible fillers (IN-01): can split a tag or blank a login.
+	"[pr\u3164-relay]",
+	"\u3164\u3164",
+	"\u2800login",
+	"\u115f\u1160\uffa0",
 	// A 300-char path.
 	"src/" + strings.Repeat("deep/", 58) + "file.go",
 	// Hostile URLs.

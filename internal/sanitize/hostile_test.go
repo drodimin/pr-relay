@@ -29,8 +29,8 @@ func checkProps(t *testing.T, name, in, out string, limit int, again func(string
 	if n := utf8.RuneCountInString(out); n == 0 {
 		t.Errorf("%s(%q): empty output", name, in)
 	}
-	if strings.Contains(strings.ToLower(out), "[pr-relay]") {
-		t.Errorf("%s(%q) = %q: contains tag", name, in, out)
+	if strings.Contains(Fold(out), "[pr-relay]") {
+		t.Errorf("%s(%q) = %q: folds to tag", name, in, out)
 	}
 	if got := again(out); got != out {
 		t.Errorf("%s not idempotent: %q -> %q", name, out, got)
