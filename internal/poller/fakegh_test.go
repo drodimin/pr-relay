@@ -41,6 +41,15 @@ type fakeGH struct {
 	nextStatus []fakeResp
 	remaining  int
 	cost       int
+	resetAt    string
+	reqAt      []time.Time // time.Now per request
+	reqCost    []int       // cost reported per request (0 for scripted)
+	// rejectToken, when set, makes every request bearing it return 401.
+	rejectToken string
+	// churn, when set, appends a comment by another user to every requested
+	// PR before answering, so every poll sees fresh activity.
+	churn  bool
+	churnN int
 
 	// block, when non-nil, makes RoundTrip signal entered and then wait for
 	// block to be closed (or the request context to end).
@@ -71,6 +80,7 @@ func newFakeGH(t *testing.T) *fakeGH {
 		prs:       map[string]map[string]any{},
 		remaining: 4900,
 		cost:      1,
+		resetAt:   "2026-11-01T13:00:00Z",
 	}
 }
 
@@ -277,7 +287,10 @@ func (f *fakeGH) RoundTrip(req *http.Request) (*http.Response, error) {
 	f.mu.Lock()
 	f.requests = append(f.requests, keys)
 	f.vars = append(f.vars, in.Variables)
+	f.reqAt = append(f.reqAt, time.Now())
+	f.reqCost = append(f.reqCost, 0)
 	block, entered := f.block, f.entered
+	reject := f.rejectToken != "" && req.Header.Get("Authorization") == "bearer "+f.rejectToken
 	f.mu.Unlock()
 
 	if block != nil {
@@ -296,16 +309,36 @@ func (f *fakeGH) RoundTrip(req *http.Request) (*http.Response, error) {
 
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	if reject {
+		return f.response(req, http.StatusUnauthorized, nil, `{"message":"Bad credentials"}`), nil
+	}
 	if len(f.nextStatus) > 0 {
 		r := f.nextStatus[0]
 		f.nextStatus = f.nextStatus[1:]
 		return f.response(req, r.status, r.header, r.body), nil
 	}
 
+	f.reqCost[len(f.reqCost)-1] = f.cost
+	if f.churn {
+		for _, k := range keys {
+			pr := f.prs[k]
+			if pr == nil {
+				continue
+			}
+			f.churnN++
+			id := "IC_churn" + strconv.Itoa(f.churnN)
+			appendConn(pr, "comments", map[string]any{
+				"id":        id,
+				"url":       pr["url"].(string) + "#issuecomment-" + id,
+				"createdAt": time.Now().UTC().Format(time.RFC3339),
+				"author":    actorJSON("alice", "User"),
+			})
+		}
+	}
 	data := map[string]any{
 		"rateLimit": map[string]any{
 			"cost": f.cost, "limit": 5000, "remaining": f.remaining, "used": 5000 - f.remaining,
-			"resetAt": "2026-11-01T13:00:00Z", "nodeCount": 10 * len(keys),
+			"resetAt": f.resetAt, "nodeCount": 10 * len(keys),
 		},
 		"viewer": map[string]any{"login": f.viewer},
 	}
@@ -350,6 +383,86 @@ func (f *fakeGH) response(req *http.Request, status int, h http.Header, body str
 		ProtoMajor:    1,
 		ProtoMinor:    1,
 	}
+}
+
+// set runs fn under the fake's lock, for changing scripted fields.
+func (f *fakeGH) set(fn func(f *fakeGH)) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	fn(f)
+}
+
+// pollTimes returns the time of every request that carried key.
+func (f *fakeGH) pollTimes(key string) []time.Time {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	var out []time.Time
+	for i, req := range f.requests {
+		for _, k := range req {
+			if k == key {
+				out = append(out, f.reqAt[i])
+				break
+			}
+		}
+	}
+	return out
+}
+
+// requestTimes returns the time of every request.
+func (f *fakeGH) requestTimes() []time.Time {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]time.Time(nil), f.reqAt...)
+}
+
+// requestCosts returns the cost reported for every request (0 for scripted
+// responses).
+func (f *fakeGH) requestCosts() []int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]int(nil), f.reqCost...)
+}
+
+// swapTokens is a TokenProvider whose answer can be changed mid-test. It
+// records when each call happened.
+type swapTokens struct {
+	mu    sync.Mutex
+	tok   string
+	src   string
+	err   error
+	calls []time.Time
+}
+
+func (s *swapTokens) Token(context.Context) (string, string, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.calls = append(s.calls, time.Now())
+	if s.err != nil {
+		return "", "", s.err
+	}
+	return s.tok, s.src, nil
+}
+
+func (s *swapTokens) set(tok, src string, err error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.tok, s.src, s.err = tok, src, err
+}
+
+func (s *swapTokens) callTimes() []time.Time {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]time.Time(nil), s.calls...)
+}
+
+// newClientWith returns a ghclient.Client over f with the given tokens.
+func newClientWith(t *testing.T, f *fakeGH, tokens ghclient.TokenProvider) *ghclient.Client {
+	t.Helper()
+	c, err := ghclient.New(ghclient.Options{Tokens: tokens, HTTP: &http.Client{Transport: f}})
+	if err != nil {
+		t.Fatalf("ghclient.New: %v", err)
+	}
+	return c
 }
 
 type staticTokens struct{}
