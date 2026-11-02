@@ -732,3 +732,40 @@ func TestEngineRestart(t *testing.T) {
 		t.Errorf("restart poll = %+v, %v", r, err)
 	}
 }
+
+func TestPollNowRateLimited(t *testing.T) {
+	h := newHarness(t)
+	h.sub(prA, "w1:p1")
+	h.pollNow(prA)
+	h.f.queue(fakeResp{status: 429, header: map[string][]string{"Retry-After": {"60"}}, body: `{}`})
+	if _, err := h.e.PollNow(context.Background(), prA); err == nil {
+		t.Fatal("429 not reported")
+	}
+	before := h.f.requestCount()
+	_, err := h.e.PollNow(context.Background(), prA)
+	var rl *RateLimitedError
+	if !errors.As(err, &rl) || !rl.Until.Equal(h.clk.Now().Add(60*time.Second)) {
+		t.Fatalf("forced poll during secondary limit = %v", err)
+	}
+	if h.f.requestCount() != before {
+		t.Error("forced poll sent a request during a secondary limit")
+	}
+	h.clk.Advance(61 * time.Second)
+	h.pollNow(prA)
+}
+
+func TestSchedule(t *testing.T) {
+	h := newHarness(t)
+	if d, at := h.e.Schedule(prA); d != 0 || !at.IsZero() {
+		t.Errorf("unwatched Schedule = %v %v", d, at)
+	}
+	h.sub(prA, "w1:p1")
+	if d, at := h.e.Schedule(prA); d != time.Minute || !at.Equal(h.clk.Now()) {
+		t.Errorf("new PR Schedule = %v %v, want 1m now", d, at)
+	}
+	h.pollNow(prA)
+	polled := h.clk.Now()
+	if d, at := h.e.Schedule(prA); d != time.Minute || !at.Equal(polled.Add(time.Minute)) {
+		t.Errorf("after poll Schedule = %v %v", d, at)
+	}
+}

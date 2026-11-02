@@ -15,7 +15,6 @@ import (
 	"github.com/drodimin/pr-relay/internal/store"
 )
 
-
 func user(login string) model.Actor { return model.Actor{Login: login, Type: "User"} }
 
 func TestMaskAllows(t *testing.T) {
