@@ -90,4 +90,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-11-01 after Phase 1 (toolchain, spikes, pure core: event detection, own-activity filter and message rendering are fixture-tested; nothing is user-facing yet, so no Active item moves to Validated)*
+*Last updated: 2026-11-02 after Phase 2 (durable state and GitHub poller: crash-safe store, batched rate-limit-aware poller and the hidden `dev watch` harness are verified, including a live GitHub run; nothing is user-facing yet because sub/unsub/ls and delivery land in Phases 3-4, so no Active item moves to Validated)*
