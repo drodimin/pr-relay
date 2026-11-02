@@ -83,11 +83,13 @@ func BuildBatch(refs []model.PRRef, w Window) (string, map[string]any, error) {
 }
 
 // Per-alias sentinels. Callers test them with errors.Is.
-var (
-	ErrNotFound    = errors.New("ghquery: pull request not found")
-	ErrForbidden   = errors.New("ghquery: pull request not accessible")
-	ErrRateLimited = errors.New("ghquery: rate limited")
-)
+var ErrNotFound = errors.New("ghquery: pull request not found")
+
+// ErrForbidden marks a pull request the token cannot read.
+var ErrForbidden = errors.New("ghquery: pull request not accessible")
+
+// ErrRateLimited matches a *BatchError carrying a RATE_LIMITED error.
+var ErrRateLimited = errors.New("ghquery: rate limited")
 
 // AliasResult is the outcome for one ref of a batch. Err is non-nil when the
 // PR could not be used (ErrNotFound, ErrForbidden, a ref mismatch or a decode
