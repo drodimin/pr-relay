@@ -3,6 +3,7 @@ package diff
 import (
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/drodimin/pr-relay/internal/model"
 )
@@ -279,6 +280,117 @@ func TestGap(t *testing.T) {
 	r = Step(r.Memory, snap(withIssueComment("I9", "b"), withTotals(1, 4)))
 	if r.Gap || len(r.Events) != 0 {
 		t.Fatalf("window slide: gap=%v events=%+v", r.Gap, r.Events)
+	}
+}
+
+// at returns a fixed timestamp i seconds after a base time.
+func at(i int) time.Time {
+	return time.Date(2026, 10, 1, 12, 0, 0, 0, time.UTC).Add(time.Duration(i) * time.Second)
+}
+
+func TestWatermark(t *testing.T) {
+	window := func(from, to int) []func(*model.Snapshot) {
+		var opts []func(*model.Snapshot)
+		for i := from; i <= to; i++ {
+			opts = append(opts, withCommentAt(fmt.Sprintf("c%d", i), "alice", at(i)))
+		}
+		return opts
+	}
+	base := snap(append(window(1, 30), withTotals(0, 31))...)
+
+	t.Run("deleted comment lets older slide in", func(t *testing.T) {
+		m := Baseline(base)
+		if !m.CommentsWatermark.Equal(at(30)) {
+			t.Fatalf("baseline watermark = %v, want %v", m.CommentsWatermark, at(30))
+		}
+		// c30 deleted; c0 (older than everything) slides into the window.
+		next := snap(append([]func(*model.Snapshot){withCommentAt("c0", "alice", at(0))},
+			append(window(1, 29), withTotals(0, 30))...)...)
+		r := Step(m, next)
+		if len(r.Events) != 0 || r.Gap {
+			t.Fatalf("slide-in emitted events=%+v gap=%v", r.Events, r.Gap)
+		}
+		if !r.Memory.SeenComments["c0"] {
+			t.Fatal("slid-in comment not marked seen")
+		}
+		if !r.Memory.CommentsWatermark.Equal(at(30)) {
+			t.Fatalf("watermark moved backwards: %v", r.Memory.CommentsWatermark)
+		}
+	})
+	t.Run("same second as watermark fires", func(t *testing.T) {
+		r := Step(Baseline(base), snap(append(window(2, 30), withCommentAt("cX", "bob", at(30)), withTotals(0, 32))...))
+		if len(r.Events) != 1 || r.Events[0].Key != "comment:cX" {
+			t.Fatalf("same-second comment: %+v", r.Events)
+		}
+	})
+	t.Run("zero createdAt fires", func(t *testing.T) {
+		r := Step(Baseline(base), snap(append(window(2, 30), withCommentAt("cZ", "bob", time.Time{}), withTotals(0, 32))...))
+		if len(r.Events) != 1 || r.Events[0].Key != "comment:cZ" {
+			t.Fatalf("zero-time comment: %+v", r.Events)
+		}
+	})
+	t.Run("old review slides in", func(t *testing.T) {
+		m := Baseline(snap(withReviewAt("R5", "APPROVED", "alice", at(5)), withReviewAt("R10", "COMMENTED", "bob", at(10), rc("rc10", "a.go", "", "bob"))))
+		if !m.ReviewsWatermark.Equal(at(10)) || m.ReviewCommentTotals["R10"] != 1 {
+			t.Fatalf("baseline review watermark=%v totals=%v", m.ReviewsWatermark, m.ReviewCommentTotals)
+		}
+		r := Step(m, snap(
+			withReviewAt("R1", "CHANGES_REQUESTED", "carol", at(1), rc("rc1", "b.go", "", "carol")),
+			withReviewAt("R5", "APPROVED", "alice", at(5)),
+		))
+		if len(r.Events) != 0 {
+			t.Fatalf("old review fired: %+v", r.Events)
+		}
+		if !r.Memory.SeenReviews["R1"] || !r.Memory.SeenComments["rc1"] {
+			t.Fatal("old review or its comments not marked seen")
+		}
+	})
+	t.Run("pending never moves watermark", func(t *testing.T) {
+		m := Baseline(snap(withReviewAt("R5", "APPROVED", "alice", at(5)), withReviewAt("RP", "PENDING", "me", at(100))))
+		if !m.ReviewsWatermark.Equal(at(5)) {
+			t.Fatalf("baseline watermark = %v, want %v", m.ReviewsWatermark, at(5))
+		}
+		r := Step(m, snap(withReviewAt("R5", "APPROVED", "alice", at(5)), withReviewAt("RP", "PENDING", "me", at(100)), withReviewAt("R50", "APPROVED", "bob", at(50))))
+		if len(r.Events) != 1 || r.Events[0].Key != "review:R50" {
+			t.Fatalf("review after pending: %+v", r.Events)
+		}
+		if !r.Memory.ReviewsWatermark.Equal(at(50)) {
+			t.Fatalf("watermark = %v, want %v", r.Memory.ReviewsWatermark, at(50))
+		}
+	})
+}
+
+func TestReviewCommentGap(t *testing.T) {
+	var old []model.ReviewComment
+	for i := 0; i < 30; i++ {
+		old = append(old, rc(fmt.Sprintf("o%d", i), "a.go", "", "alice"))
+	}
+	m := Baseline(snap(withReviewAt("R1", "COMMENTED", "alice", at(1), old...)))
+	if m.ReviewCommentTotals["R1"] != 30 {
+		t.Fatalf("baseline ReviewCommentTotals = %v", m.ReviewCommentTotals)
+	}
+	step := func(newIDs int) Result {
+		cs := append([]model.ReviewComment{}, old...)
+		for i := 0; i < newIDs; i++ {
+			cs = append(cs, rc(fmt.Sprintf("n%d", i), "a.go", "o0", "bob"))
+		}
+		s := snap(withReviewAt("R1", "COMMENTED", "alice", at(1), cs...))
+		s.Reviews[0].CommentsTotal = 33
+		return Step(m, s)
+	}
+	if r := step(1); !r.Gap || len(r.Events) != 1 {
+		t.Fatalf("1 of 3 visible: gap=%v events=%d, want gap", r.Gap, len(r.Events))
+	}
+	r := step(3)
+	if r.Gap || len(r.Events) != 3 {
+		t.Fatalf("3 of 3 visible: gap=%v events=%d, want no gap", r.Gap, len(r.Events))
+	}
+	if r.Memory.ReviewCommentTotals["R1"] != 33 {
+		t.Fatalf("ReviewCommentTotals not updated: %v", r.Memory.ReviewCommentTotals)
+	}
+	// Unchanged afterwards: no gap.
+	if r2 := Step(r.Memory, snap(withReviewAt("R1", "COMMENTED", "alice", at(1), old...), func(s *model.Snapshot) { s.Reviews[0].CommentsTotal = 33 })); r2.Gap {
+		t.Fatal("steady state flagged as gap")
 	}
 }
 

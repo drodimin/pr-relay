@@ -3,6 +3,7 @@ package diff
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/drodimin/pr-relay/internal/model"
 )
@@ -61,6 +62,31 @@ func withCommits(oids ...string) func(*model.Snapshot) {
 // fewer commits than the PR has).
 func withCommitsTotal(n int) func(*model.Snapshot) {
 	return func(s *model.Snapshot) { s.CommitsTotal = n }
+}
+
+// withCommentAt appends an issue comment with a createdAt and bumps
+// CommentsTotal by one.
+func withCommentAt(id, login string, ts time.Time) func(*model.Snapshot) {
+	return func(s *model.Snapshot) {
+		s.Comments = append(s.Comments, model.IssueComment{
+			ID: id, URL: "https://github.com/o/r/pull/1#issuecomment-" + id,
+			Author: model.Actor{Login: login, Type: "User"}, CreatedAt: ts,
+		})
+		s.CommentsTotal++
+	}
+}
+
+// withReviewAt appends a review with a submittedAt and bumps ReviewsTotal by
+// one. CommentsTotal is len(comments).
+func withReviewAt(id, state, login string, ts time.Time, comments ...model.ReviewComment) func(*model.Snapshot) {
+	return func(s *model.Snapshot) {
+		s.Reviews = append(s.Reviews, model.Review{
+			ID: id, State: state, URL: "https://github.com/o/r/pull/1#pullrequestreview-" + id,
+			Author: model.Actor{Login: login, Type: "User"}, Comments: comments,
+			CommentsTotal: len(comments), SubmittedAt: ts,
+		})
+		s.ReviewsTotal++
+	}
 }
 
 func withForcePush(id, before, after, login string) func(*model.Snapshot) {

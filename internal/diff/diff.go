@@ -57,12 +57,19 @@ func Baseline(s model.Snapshot) model.Memory {
 			continue
 		}
 		m.SeenReviews[r.ID] = true
+		m.ReviewCommentTotals[r.ID] = r.CommentsTotal
+		if r.SubmittedAt.After(m.ReviewsWatermark) {
+			m.ReviewsWatermark = r.SubmittedAt
+		}
 		for _, rc := range r.Comments {
 			m.SeenComments[rc.ID] = true
 		}
 	}
 	for _, c := range s.Comments {
 		m.SeenComments[c.ID] = true
+		if c.CreatedAt.After(m.CommentsWatermark) {
+			m.CommentsWatermark = c.CreatedAt
+		}
 	}
 	baselineCI(&m, s)
 	return m
