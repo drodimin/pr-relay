@@ -9,7 +9,7 @@ Design principle: flow-agnostic primitives. Only `--events` selects what a subsc
 ## Phases
 
 - [x] **Phase 1: Toolchain, Spikes & Pure Core** - Go toolchain, runtime spikes, and the pure event/diff/render/sanitize core (completed 2026-11-01)
-- [ ] **Phase 2: Durable State & GitHub Poller** - Atomic state store and a rate-limit-safe, deduplicated, adaptive GitHub poller (headless)
+- [x] **Phase 2: Durable State & GitHub Poller** - Atomic state store and a rate-limit-safe, deduplicated, adaptive GitHub poller (headless) (completed 2026-11-02)
 - [ ] **Phase 3: herdr Client & Delivery** - herdr socket client and per-pane delivery workers that never interrupt or mis-target an agent
 - [ ] **Phase 4: Daemon, Control Protocol & CLI** - Single daemon, auto-start, and the `sub`/`unsub`/`keep`/`ls`/`status` CLI with subscription lifecycle
 - [ ] **Phase 5: Packaging, Plugin & Agent Skill** - Cross-platform release, Homebrew tap, herdr plugin, agent skill and README
@@ -100,7 +100,7 @@ Plans:
 
 **Wave 7** *(blocked on Wave 6 completion)*
 
-- [ ] 02-12-PLAN.md — live probes A1/A2/A5, live batch fixture, human sign-off incl. A6
+- [x] 02-12-PLAN.md — live probes A1/A2/A5, live batch fixture, human sign-off incl. A6
 
 ### Phase 3: herdr Client & Delivery
 
@@ -151,7 +151,7 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Toolchain, Spikes & Pure Core | 9/9 | Complete   | 2026-11-01 |
-| 2. Durable State & GitHub Poller | 11/12 | In Progress|  |
+| 2. Durable State & GitHub Poller | 12/12 | Complete   | 2026-11-02 |
 | 3. herdr Client & Delivery | 0/TBD | Not started | - |
 | 4. Daemon, Control Protocol & CLI | 0/TBD | Not started | - |
 | 5. Packaging, Plugin & Agent Skill | 0/TBD | Not started | - |
