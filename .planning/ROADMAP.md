@@ -67,7 +67,40 @@ Plans:
   3. Many subscriptions to one PR result in exactly one poll per interval, using the user's existing `gh` token with no extra setup, and a changed token is picked up after a 401.
   4. Polling is batched and logs GraphQL cost. It speeds up while CI is pending, slows progressively as a PR stays quiet (about 1 minute up to about 1 hour), snaps back on any change, and backs off on low budget or secondary-limit responses.
 
-**Plans**: TBD
+**Plans**: 12 plans
+Plans:
+**Wave 1**
+
+- [ ] 02-01-PLAN.md — dependency legitimacy checkpoint, pin 5 modules, internal/paths + internal/config (D-08)
+- [ ] 02-02-PLAN.md — model contract (WR-07, json tags, Memory v1 fields) + fragment query + decoder fixes (CR-01 ts, WR-03/04/05)
+- [ ] 02-08-PLAN.md — pure cadence curve (D-09..D-11) and budget/backoff (D-05..D-07)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 02-03-PLAN.md — diff fixes CR-01, WR-01, WR-02, WR-06 + five regression scenarios
+- [ ] 02-04-PLAN.md — sanitize CR-02 NFKC/skeleton fold + IN-01 fillers + folded render guard
+- [ ] 02-05-PLAN.md — ghquery BuildBatch/DecodeBatch with per-alias error isolation
+- [ ] 02-06-PLAN.md — store: schema v1, deep Clone, flock, atomic save, quarantine (D-01, D-20)
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [ ] 02-07-PLAN.md — ghclient: gh token reuse with reload, own GraphQL client, error taxonomy
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
+- [ ] 02-09-PLAN.md — poller Engine: registry/upsert, transactional-outbox commit, fan-out, primitives
+
+**Wave 5** *(blocked on Wave 4 completion)*
+
+- [ ] 02-10-PLAN.md — scheduler loop, budget gating, auth retry, Status; synctest proofs
+
+**Wave 6** *(blocked on Wave 5 completion)*
+
+- [ ] 02-11-PLAN.md — cobra root, hidden dev watch + idempotent sink, SIGKILL crash loop (SC-1)
+
+**Wave 7** *(blocked on Wave 6 completion)*
+
+- [ ] 02-12-PLAN.md — live probes A1/A2/A5, live batch fixture, human sign-off incl. A6
 
 ### Phase 3: herdr Client & Delivery
 
@@ -118,7 +151,7 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Toolchain, Spikes & Pure Core | 9/9 | Complete   | 2026-11-01 |
-| 2. Durable State & GitHub Poller | 0/TBD | Not started | - |
+| 2. Durable State & GitHub Poller | 0/12 | Planned | - |
 | 3. herdr Client & Delivery | 0/TBD | Not started | - |
 | 4. Daemon, Control Protocol & CLI | 0/TBD | Not started | - |
 | 5. Packaging, Plugin & Agent Skill | 0/TBD | Not started | - |
