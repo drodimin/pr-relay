@@ -293,13 +293,16 @@ func TestTransient(t *testing.T) {
 		}
 	})
 	t.Run("timeout", func(t *testing.T) {
+		release := make(chan struct{})
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			select {
 			case <-r.Context().Done():
+			case <-release:
 			case <-time.After(3 * time.Second):
 			}
 		}))
 		t.Cleanup(srv.Close)
+		t.Cleanup(func() { close(release) }) // runs before srv.Close
 		c, err := New(Options{
 			Endpoint: srv.URL + "/graphql",
 			Tokens:   &staticTokens{tok: testToken},
