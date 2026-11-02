@@ -1,0 +1,4 @@
+step 01-delete-newest:
+step 02-new-comment:
+[pr-relay] drodimin/pr-relay-fixtures#10 comment by dmitriy-medme https://github.com/drodimin/pr-relay-fixtures/pull/10#issuecomment-9000040
+step replay 02-new-comment:
