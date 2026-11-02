@@ -4,8 +4,8 @@ milestone: v1.0
 milestone_name: milestone
 status: executing
 stopped_at: Phase 2 context gathered
-last_updated: "2026-11-02T01:24:04.855Z"
-last_activity: 2026-11-02 -- Phase 2 planning complete
+last_updated: "2026-11-02T02:03:45.636Z"
+last_activity: 2026-11-02 -- Phase 02 execution started
 progress:
   total_phases: 5
   completed_phases: 1
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-10-31)
 
 **Core value:** An agent runs `pr-relay sub <PR link>` once, returns immediately, and later receives a relevant PR update in its pane without spending tokens on polling. One poller serves every agent on the machine.
-**Current focus:** Phase 2 — durable state & github poller
+**Current focus:** Phase 02 — durable-state-github-poller
 
 ## Current Position
 
-Phase: 2
-Plan: Not started
-Status: Ready to execute
-Last activity: 2026-11-02 -- Phase 2 planning complete
+Phase: 02 (durable-state-github-poller) — EXECUTING
+Plan: 1 of 12
+Status: Executing Phase 02
+Last activity: 2026-11-02 -- Phase 02 execution started
 
 Progress: [██████████] 100%
 

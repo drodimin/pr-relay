@@ -71,9 +71,9 @@ Plans:
 Plans:
 **Wave 1**
 
-- [ ] 02-01-PLAN.md — dependency legitimacy checkpoint, pin 5 modules, internal/paths + internal/config (D-08)
-- [ ] 02-02-PLAN.md — model contract (WR-07, json tags, Memory v1 fields) + fragment query + decoder fixes (CR-01 ts, WR-03/04/05)
-- [ ] 02-08-PLAN.md — pure cadence curve (D-09..D-11) and budget/backoff (D-05..D-07)
+- [x] 02-01-PLAN.md — dependency legitimacy checkpoint, pin 5 modules, internal/paths + internal/config (D-08)
+- [x] 02-02-PLAN.md — model contract (WR-07, json tags, Memory v1 fields) + fragment query + decoder fixes (CR-01 ts, WR-03/04/05)
+- [x] 02-08-PLAN.md — pure cadence curve (D-09..D-11) and budget/backoff (D-05..D-07)
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
@@ -151,7 +151,7 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Toolchain, Spikes & Pure Core | 9/9 | Complete   | 2026-11-01 |
-| 2. Durable State & GitHub Poller | 0/12 | Planned | - |
+| 2. Durable State & GitHub Poller | 3/12 | In Progress|  |
 | 3. herdr Client & Delivery | 0/TBD | Not started | - |
 | 4. Daemon, Control Protocol & CLI | 0/TBD | Not started | - |
 | 5. Packaging, Plugin & Agent Skill | 0/TBD | Not started | - |
