@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/drodimin/pr-relay/internal/model"
 )
@@ -18,6 +19,15 @@ type RateLimit struct {
 	Used      int
 	NodeCount int
 	ResetAt   string
+}
+
+// GraphQLError is one entry of a GraphQL response's errors array. Path is the
+// response path the error is scoped to (strings and array indices), nil when
+// the error applies to the whole operation.
+type GraphQLError struct {
+	Type    string `json:"type"`
+	Message string `json:"message"`
+	Path    []any  `json:"path"`
 }
 
 // knownConclusions lists every CheckConclusionState value in GitHub's schema.
@@ -58,10 +68,7 @@ type wireResponse struct {
 			PullRequest *wirePR `json:"pullRequest"`
 		} `json:"repository"`
 	} `json:"data"`
-	Errors []struct {
-		Type    string `json:"type"`
-		Message string `json:"message"`
-	} `json:"errors"`
+	Errors []GraphQLError `json:"errors"`
 }
 
 type wireRateLimit struct {
@@ -108,9 +115,10 @@ type wirePR struct {
 	Comments struct {
 		TotalCount int `json:"totalCount"`
 		Nodes      []struct {
-			ID     string     `json:"id"`
-			URL    string     `json:"url"`
-			Author *wireActor `json:"author"`
+			ID        string     `json:"id"`
+			URL       string     `json:"url"`
+			CreatedAt string     `json:"createdAt"`
+			Author    *wireActor `json:"author"`
 		} `json:"nodes"`
 	} `json:"comments"`
 	TimelineItems struct {
@@ -137,7 +145,8 @@ type wireContext struct {
 			Slug string `json:"slug"`
 		} `json:"app"`
 		WorkflowRun *struct {
-			RunAttempt int `json:"runAttempt"`
+			RunAttempt int    `json:"runAttempt"`
+			Event      string `json:"event"`
 			Workflow   *struct {
 				Name string `json:"name"`
 			} `json:"workflow"`
@@ -146,12 +155,13 @@ type wireContext struct {
 }
 
 type wireReview struct {
-	ID       string     `json:"id"`
-	State    string     `json:"state"`
-	URL      string     `json:"url"`
-	Body     string     `json:"body"` // read only to derive HasBody, never copied out
-	Author   *wireActor `json:"author"`
-	Comments struct {
+	ID          string     `json:"id"`
+	State       string     `json:"state"`
+	URL         string     `json:"url"`
+	SubmittedAt string     `json:"submittedAt"`
+	Body        string     `json:"body"` // read only to derive HasBody, never copied out
+	Author      *wireActor `json:"author"`
+	Comments    struct {
 		TotalCount int `json:"totalCount"`
 		Nodes      []struct {
 			ID      string `json:"id"`
@@ -182,8 +192,56 @@ func userRef(u *wireUserRef) (model.Actor, bool) {
 	return model.Actor{Login: u.User.Login, Type: "User"}, true
 }
 
+// parseTime parses an RFC 3339 GraphQL DateTime. Empty or malformed input
+// yields the zero time rather than an error, so one odd timestamp never makes
+// a whole pull request undecodable.
+func parseTime(v string) time.Time {
+	if v == "" {
+		return time.Time{}
+	}
+	t, err := time.Parse(time.RFC3339, v)
+	if err != nil {
+		return time.Time{}
+	}
+	return t
+}
+
+// errorMessages renders each GraphQL error as "TYPE: message", or just the
+// message when the type is empty. The batch decoder shares it.
+func errorMessages(errs []GraphQLError) []string {
+	msgs := make([]string, 0, len(errs))
+	for _, e := range errs {
+		if e.Type != "" {
+			msgs = append(msgs, e.Type+": "+e.Message)
+		} else {
+			msgs = append(msgs, e.Message)
+		}
+	}
+	return msgs
+}
+
+// prScoped reports whether every error is scoped to a path inside
+// repository.pullRequest, for example FORBIDDEN on a checkSuite.workflowRun
+// the token cannot read. Such an error only nulls a sub-field, so the rest of
+// the pull request is still usable (WR-04). RATE_LIMITED is never tolerated.
+func prScoped(errs []GraphQLError) bool {
+	for _, e := range errs {
+		if e.Type == "RATE_LIMITED" || len(e.Path) < 2 {
+			return false
+		}
+		if p0, _ := e.Path[0].(string); p0 != "repository" {
+			return false
+		}
+		if p1, _ := e.Path[1].(string); p1 != "pullRequest" {
+			return false
+		}
+	}
+	return true
+}
+
 // Decode turns a PRState GraphQL response into a Snapshot. It is pure: it
-// performs no I/O and keeps no review or comment body text.
+// performs no I/O and keeps no review or comment body text. Errors scoped
+// inside a non-null pullRequest are tolerated; any other error fails.
 func Decode(data []byte) (model.Snapshot, RateLimit, error) {
 	var resp wireResponse
 	if err := json.Unmarshal(data, &resp); err != nil {
@@ -194,24 +252,29 @@ func Decode(data []byte) (model.Snapshot, RateLimit, error) {
 		w := resp.Data.RateLimit
 		rl = RateLimit{Cost: w.Cost, Limit: w.Limit, Remaining: w.Remaining, Used: w.Used, NodeCount: w.NodeCount, ResetAt: w.ResetAt}
 	}
-	if len(resp.Errors) > 0 {
-		msgs := make([]string, 0, len(resp.Errors))
-		for _, e := range resp.Errors {
-			if e.Type != "" {
-				msgs = append(msgs, e.Type+": "+e.Message)
-			} else {
-				msgs = append(msgs, e.Message)
-			}
-		}
-		return model.Snapshot{}, rl, fmt.Errorf("ghquery: graphql errors: %s", strings.Join(msgs, "; "))
+	var pr *wirePR
+	if resp.Data != nil && resp.Data.Repository != nil {
+		pr = resp.Data.Repository.PullRequest
 	}
-	if resp.Data == nil || resp.Data.Repository == nil || resp.Data.Repository.PullRequest == nil {
+	if len(resp.Errors) > 0 && (pr == nil || !prScoped(resp.Errors)) {
+		return model.Snapshot{}, rl, fmt.Errorf("ghquery: graphql errors: %s", strings.Join(errorMessages(resp.Errors), "; "))
+	}
+	if pr == nil {
 		return model.Snapshot{}, rl, errors.New("ghquery: response has no pullRequest")
 	}
-	pr := resp.Data.Repository.PullRequest
+	s, err := snapshotFromWire(pr)
+	if err != nil {
+		return model.Snapshot{}, rl, err
+	}
+	return s, rl, nil
+}
+
+// snapshotFromWire converts one decoded pullRequest object into a Snapshot.
+// Single and batched responses share it.
+func snapshotFromWire(pr *wirePR) (model.Snapshot, error) {
 	ref, err := model.ParsePRURL(pr.URL)
 	if err != nil {
-		return model.Snapshot{}, rl, fmt.Errorf("ghquery: %w", err)
+		return model.Snapshot{}, fmt.Errorf("ghquery: %w", err)
 	}
 
 	s := model.Snapshot{
@@ -249,6 +312,7 @@ func Decode(data []byte) (model.Snapshot, RateLimit, error) {
 			Author:        actor(r.Author),
 			HasBody:       strings.TrimSpace(r.Body) != "",
 			CommentsTotal: r.Comments.TotalCount,
+			SubmittedAt:   parseTime(r.SubmittedAt),
 		}
 		for _, c := range r.Comments.Nodes {
 			rc := model.ReviewComment{ID: c.ID, URL: c.URL, Path: c.Path, Author: actor(c.Author)}
@@ -261,14 +325,19 @@ func Decode(data []byte) (model.Snapshot, RateLimit, error) {
 	}
 
 	for _, c := range pr.Comments.Nodes {
-		s.Comments = append(s.Comments, model.IssueComment{ID: c.ID, URL: c.URL, Author: actor(c.Author)})
+		s.Comments = append(s.Comments, model.IssueComment{
+			ID: c.ID, URL: c.URL, Author: actor(c.Author), CreatedAt: parseTime(c.CreatedAt),
+		})
 	}
 
-	// timelineItems(last:N) is chronological, so the last ClosedEvent is the newest.
+	// timelineItems(last:N) is chronological. ClosedBy comes from the newest
+	// Closed/Reopened item only, so a later ReopenedEvent clears it (WR-03).
 	for _, it := range pr.TimelineItems.Nodes {
 		switch it.Typename {
 		case "ClosedEvent":
 			s.ClosedBy = actor(it.Actor)
+		case "ReopenedEvent":
+			s.ClosedBy = model.Actor{}
 		case "HeadRefForcePushedEvent":
 			fp := model.ForcePush{ID: it.ID, Actor: actor(it.Actor)}
 			if it.BeforeCommit != nil {
@@ -280,7 +349,7 @@ func Decode(data []byte) (model.Snapshot, RateLimit, error) {
 			s.ForcePushes = append(s.ForcePushes, fp)
 		}
 	}
-	return s, rl, nil
+	return s, nil
 }
 
 // decodeChecks applies D-06/D-08/D-09: only CheckRun nodes, only when the
@@ -319,13 +388,20 @@ func decodeChecks(s *model.Snapshot, pr *wirePR) {
 			}
 			if wr := cs.WorkflowRun; wr != nil {
 				cr.RunAttempt = wr.RunAttempt
+				cr.Event = wr.Event
 				if wr.Workflow != nil {
 					cr.Workflow = wr.Workflow.Name
 				}
 			}
 		}
+		// WR-05: the trigger event is part of an Actions key, so the same job
+		// run by push and by pull_request stays two checks. Reruns of one
+		// trigger still share a Key and collapse to the newest databaseId.
 		if cr.Workflow != "" {
 			cr.Key = cr.Workflow + "/" + cr.Name
+			if cr.Event != "" {
+				cr.Key += "@" + cr.Event
+			}
 		} else {
 			cr.Key = cr.App + "/" + cr.Name
 		}
