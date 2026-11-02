@@ -130,7 +130,7 @@ func TestTokenGhFailureDoesNotLeakOutput(t *testing.T) {
 
 func TestTokenGhTimeout(t *testing.T) {
 	isolateAuth(t)
-	t.Setenv("GH_PATH", writeScript(t, "sleep 5\necho late"))
+	t.Setenv("GH_PATH", writeScript(t, "/bin/sleep 5\necho late"))
 	ts := &TokenSource{Timeout: 200 * time.Millisecond}
 	start := time.Now()
 	_, _, err := ts.Token(t.Context())
