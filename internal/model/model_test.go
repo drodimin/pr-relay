@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"reflect"
 	"testing"
+	"time"
 )
 
 func TestParsePRURL(t *testing.T) {
@@ -50,6 +51,9 @@ func TestParsePRURL(t *testing.T) {
 		"https://github.com//r/pull/12",
 		"https://GitHub.com/o/r/pull/12",
 		"github.com/o/r/pull/12",
+		"https://github.com/../r/pull/1",
+		"https://github.com/o/./pull/1",
+		"https://github.com/./../pull/1",
 		"",
 	}
 	for _, in := range reject {
@@ -67,9 +71,14 @@ func TestPRRefFormat(t *testing.T) {
 	if r.URL() != "https://github.com/o/r/pull/12" {
 		t.Errorf("URL() = %q", r.URL())
 	}
-	for _, bad := range []PRRef{{"", "r", 1}, {"o", "", 1}, {"o", "r", 0}, {"o/x", "r", 1}} {
+	for _, bad := range []PRRef{{"", "r", 1}, {"o", "", 1}, {"o", "r", 0}, {"o/x", "r", 1}, {".", "r", 1}, {"o", "..", 1}, {"..", ".", 1}} {
 		if bad.Valid() {
 			t.Errorf("%+v.Valid() = true", bad)
+		}
+	}
+	for _, good := range []PRRef{{"a.b", "c..d", 1}, {"...", ".x", 1}} {
+		if !good.Valid() {
+			t.Errorf("%+v.Valid() = false", good)
 		}
 	}
 }
@@ -102,18 +111,23 @@ func TestAllEventTypes(t *testing.T) {
 func TestMemoryCloneDeep(t *testing.T) {
 	var zero Memory
 	zc := zero.Clone()
-	if zc.FailedReported == nil || zc.SeenReviews == nil || zc.SeenComments == nil || zc.SeenForcePushes == nil {
+	if zc.FailedReported == nil || zc.SeenReviews == nil || zc.SeenComments == nil || zc.SeenForcePushes == nil || zc.ReviewCommentTotals == nil {
 		t.Fatalf("zero Memory clone has nil maps: %+v", zc)
 	}
 
 	orig := Memory{
-		Baselined:       true,
-		HeadOID:         "abc",
-		FailedReported:  map[string]bool{"ci/build": true},
-		SeenReviews:     map[string]bool{"R1": true},
-		SeenComments:    map[string]bool{"C1": true},
-		SeenForcePushes: map[string]bool{"F1": true},
-		ReviewsTotal:    1,
+		Baselined:           true,
+		HeadOID:             "abc",
+		FailedReported:      map[string]bool{"ci/build": true},
+		SeenReviews:         map[string]bool{"R1": true},
+		SeenComments:        map[string]bool{"C1": true},
+		SeenForcePushes:     map[string]bool{"F1": true},
+		ReviewsTotal:        1,
+		Epoch:               3,
+		CommitsTotal:        4,
+		CommentsWatermark:   time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC),
+		ReviewsWatermark:    time.Date(2026, 1, 2, 3, 4, 6, 0, time.UTC),
+		ReviewCommentTotals: map[string]int{"R1": 2},
 	}
 	c := orig.Clone()
 	if !reflect.DeepEqual(c, orig) {
@@ -133,6 +147,11 @@ func TestMemoryCloneDeep(t *testing.T) {
 		if len(m) != 1 {
 			t.Errorf("original %s has %d entries, want 1", name, len(m))
 		}
+	}
+	c.ReviewCommentTotals["R1"] = 9
+	c.ReviewCommentTotals["x"] = 1
+	if orig.ReviewCommentTotals["R1"] != 2 || len(orig.ReviewCommentTotals) != 1 {
+		t.Errorf("mutating clone changed original ReviewCommentTotals: %v", orig.ReviewCommentTotals)
 	}
 }
 
@@ -177,5 +196,57 @@ func TestJSONRoundTrip(t *testing.T) {
 		FailedReported: map[string]bool{"k": true}, SettleCandidate: "fp", SettledResult: "passed",
 		SettleSeq: 2, SeenReviews: map[string]bool{"r": true}, SeenComments: map[string]bool{"c": true},
 		SeenForcePushes: map[string]bool{"f": true}, ReviewsTotal: 1, CommentsTotal: 1,
+		Epoch: 7, CommitsTotal: 12,
+		CommentsWatermark:   time.Date(2026, 3, 4, 5, 6, 7, 0, time.UTC),
+		ReviewsWatermark:    time.Date(2026, 3, 4, 5, 6, 8, 0, time.UTC),
+		ReviewCommentTotals: map[string]int{"r": 3, "r2": 0},
 	})
+	roundTrip(t, PRRef{"o", "r", 5})
+	roundTrip(t, IssueComment{ID: "IC", URL: "u", Author: u, CreatedAt: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)})
+	roundTrip(t, Review{ID: "R", State: "COMMENTED", SubmittedAt: time.Date(2026, 1, 1, 0, 0, 1, 0, time.UTC)})
+}
+
+func TestMemoryJSONKeys(t *testing.T) {
+	b, err := json.Marshal(Memory{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var keys map[string]json.RawMessage
+	if err := json.Unmarshal(b, &keys); err != nil {
+		t.Fatal(err)
+	}
+	want := []string{
+		"baselined", "head_oid", "base_oid", "state", "mergeable", "failed_reported",
+		"settle_candidate", "settled_result", "settle_seq", "seen_reviews", "seen_comments",
+		"seen_force_pushes", "reviews_total", "comments_total", "epoch", "commits_total",
+		"comments_watermark", "reviews_watermark", "review_comment_totals",
+	}
+	for _, k := range want {
+		if _, ok := keys[k]; !ok {
+			t.Errorf("Memory JSON missing key %q (got %s)", k, b)
+		}
+	}
+	if len(keys) != len(want) {
+		t.Errorf("Memory JSON has %d keys, want %d: %s", len(keys), len(want), b)
+	}
+
+	rb, _ := json.Marshal(PRRef{"o", "r", 1})
+	if string(rb) != `{"owner":"o","repo":"r","number":1}` {
+		t.Errorf("PRRef JSON = %s", rb)
+	}
+	ab, _ := json.Marshal(Actor{"a", "User"})
+	if string(ab) != `{"login":"a","type":"User"}` {
+		t.Errorf("Actor JSON = %s", ab)
+	}
+	eb, _ := json.Marshal(Event{Type: EventComment, Key: "k", HeadOID: "h"})
+	var ek map[string]json.RawMessage
+	_ = json.Unmarshal(eb, &ek)
+	for _, k := range []string{"type", "key", "head_oid"} {
+		if _, ok := ek[k]; !ok {
+			t.Errorf("Event JSON missing %q: %s", k, eb)
+		}
+	}
+	if _, ok := ek["check_name"]; ok {
+		t.Errorf("Event JSON should omit empty check_name: %s", eb)
+	}
 }

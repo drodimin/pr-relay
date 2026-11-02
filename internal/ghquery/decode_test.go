@@ -9,6 +9,7 @@ import (
 	"sort"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/drodimin/pr-relay/internal/model"
 )
@@ -225,10 +226,104 @@ func TestDecodeErrors(t *testing.T) {
 			pr["url"] = "https://evil.example/synth-owner/synth-repo/pull/8"
 		}),
 	}
-	for name, data := range cases {
-		if _, _, err := Decode(data); err == nil {
-			t.Errorf("%s: want error", name)
+	withErrors := func(errs string) []byte {
+		var root map[string]any
+		if err := json.Unmarshal(load(t, "synthetic-basic.json"), &root); err != nil {
+			t.Fatal(err)
 		}
+		var e any
+		if err := json.Unmarshal([]byte(errs), &e); err != nil {
+			t.Fatal(err)
+		}
+		root["errors"] = e
+		b, _ := json.Marshal(root)
+		return b
+	}
+	// A non-null pullRequest does not rescue these: no path, a path outside
+	// the pullRequest, or RATE_LIMITED.
+	cases["no path"] = withErrors(`[{"type":"INTERNAL","message":"boom"}]`)
+	cases["top-level path"] = withErrors(`[{"type":"FORBIDDEN","message":"x","path":["repository"]}]`)
+	cases["other root"] = withErrors(`[{"type":"FORBIDDEN","message":"x","path":["viewer","login"]}]`)
+	cases["rate limited"] = withErrors(`[{"type":"RATE_LIMITED","message":"slow down","path":["repository","pullRequest","reviews"]}]`)
+	cases["mixed"] = withErrors(`[{"type":"FORBIDDEN","message":"x","path":["repository","pullRequest","statusCheckRollup"]},{"message":"no path"}]`)
+	for name, data := range cases {
+		_, _, err := Decode(data)
+		if err == nil {
+			t.Errorf("%s: want error", name)
+			continue
+		}
+		if !strings.HasPrefix(err.Error(), "ghquery:") {
+			t.Errorf("%s: error %q lacks ghquery: prefix", name, err)
+		}
+	}
+}
+
+func TestDecodePartialErrors(t *testing.T) {
+	s, rl, err := Decode(load(t, "synthetic-partial-forbidden.json"))
+	if err != nil {
+		t.Fatalf("path-scoped FORBIDDEN with non-null pullRequest: %v", err)
+	}
+	if s.Ref.Number != 7 || s.HeadOID == "" || len(s.Checks) == 0 {
+		t.Errorf("partial snapshot looks empty: %+v", s)
+	}
+	if rl.Limit != 5000 {
+		t.Errorf("RateLimit lost on partial decode: %+v", rl)
+	}
+}
+
+func TestDecodeParallelTrigger(t *testing.T) {
+	s, _ := decodeFile(t, "synthetic-parallel-trigger.json")
+	if len(s.Checks) != 2 {
+		t.Fatalf("got %d checks, want 2: %+v", len(s.Checks), s.Checks)
+	}
+	pr, push := s.Checks[0], s.Checks[1]
+	if pr.Key != "ci/test@pull_request" || push.Key != "ci/test@push" {
+		t.Fatalf("keys = %q, %q", pr.Key, push.Key)
+	}
+	if pr.DatabaseID != 9 || pr.Conclusion != "SUCCESS" || pr.Event != "pull_request" {
+		t.Errorf("pull_request run = %+v, want newest databaseId 9 (rerun collapse)", pr)
+	}
+	if push.DatabaseID != 5 || push.Conclusion != "FAILURE" || push.Event != "push" {
+		t.Errorf("push run = %+v", push)
+	}
+
+	// No workflowRun.event (every Phase 1 fixture) keeps the plain key.
+	b, _ := decodeFile(t, "synthetic-basic.json")
+	if b.Checks[1].Key != "ci/test" || b.Checks[1].Event != "" {
+		t.Errorf("event-less key = %q event %q, want ci/test", b.Checks[1].Key, b.Checks[1].Event)
+	}
+}
+
+func TestDecodeTimestamps(t *testing.T) {
+	s, _ := decodeFile(t, "synthetic-basic.json")
+	if want := time.Date(2026, 10, 31, 10, 13, 0, 0, time.UTC); !s.Comments[0].CreatedAt.Equal(want) {
+		t.Errorf("comment 0 CreatedAt = %v, want %v", s.Comments[0].CreatedAt, want)
+	}
+	if want := time.Date(2026, 10, 31, 10, 14, 0, 0, time.UTC); !s.Comments[1].CreatedAt.Equal(want) {
+		t.Errorf("comment 1 CreatedAt = %v, want %v", s.Comments[1].CreatedAt, want)
+	}
+	if want := time.Date(2026, 10, 31, 10, 10, 0, 0, time.UTC); !s.Reviews[0].SubmittedAt.Equal(want) {
+		t.Errorf("review 0 SubmittedAt = %v, want %v", s.Reviews[0].SubmittedAt, want)
+	}
+
+	odd := mutate(t, "synthetic-basic.json", func(pr map[string]any) {
+		revs := pr["reviews"].(map[string]any)["nodes"].([]any)
+		revs[0].(map[string]any)["state"] = "PENDING"
+		revs[0].(map[string]any)["submittedAt"] = nil
+		revs[1].(map[string]any)["submittedAt"] = "not a time"
+		cs := pr["comments"].(map[string]any)["nodes"].([]any)
+		delete(cs[0].(map[string]any), "createdAt")
+	})
+	o, _, err := Decode(odd)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !o.Reviews[0].SubmittedAt.IsZero() || !o.Reviews[1].SubmittedAt.IsZero() || !o.Comments[0].CreatedAt.IsZero() {
+		t.Errorf("null/bad/missing timestamps should be zero: %v %v %v",
+			o.Reviews[0].SubmittedAt, o.Reviews[1].SubmittedAt, o.Comments[0].CreatedAt)
+	}
+	if o.Comments[1].CreatedAt.IsZero() {
+		t.Error("good timestamp lost next to a missing one")
 	}
 }
 
@@ -257,6 +352,26 @@ func TestDecodeClosedBy(t *testing.T) {
 	if m.State != "MERGED" || m.MergedBy != (model.Actor{Login: "erin", Type: "User"}) {
 		t.Errorf("merged: State=%q MergedBy=%+v", m.State, m.MergedBy)
 	}
+
+	// WR-03: only the newest Closed/Reopened item counts.
+	r, _ := decodeFile(t, "synthetic-reopened.json")
+	if r.ClosedBy != (model.Actor{}) {
+		t.Errorf("closed then reopened: ClosedBy = %+v, want zero", r.ClosedBy)
+	}
+	reclosed := mutate(t, "synthetic-reopened.json", func(pr map[string]any) {
+		pr["state"] = "CLOSED"
+		pr["timelineItems"].(map[string]any)["nodes"] = []any{
+			map[string]any{"__typename": "ReopenedEvent", "id": "RE_1", "actor": map[string]any{"__typename": "User", "login": "b"}},
+			map[string]any{"__typename": "ClosedEvent", "id": "CE_9", "actor": map[string]any{"__typename": "User", "login": "c"}},
+		}
+	})
+	rc, _, err := Decode(reclosed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rc.ClosedBy.Login != "c" {
+		t.Errorf("reopened then closed: ClosedBy = %+v, want c", rc.ClosedBy)
+	}
 }
 
 func TestDecodeRateLimit(t *testing.T) {
@@ -279,8 +394,37 @@ func TestQueryShape(t *testing.T) {
 	}
 	rev := strings.Index(Query, "reviews(")
 	body := strings.Index(Query, " body")
-	cmts := strings.Index(Query, "\n      comments(")
+	cmts := strings.Index(Query, "\n  comments(")
 	if rev < 0 || cmts < 0 || body < rev || body > cmts {
 		t.Errorf("body is not inside the reviews selection (reviews=%d body=%d comments=%d)", rev, body, cmts)
+	}
+	if n := len(regexp.MustCompile(`(?m)^query `).FindAllString(Query, -1)); n != 1 {
+		t.Errorf("Query has %d operations, want 1", n)
+	}
+	for _, want := range []string{
+		"...PRFields",
+		"$reviewsLast: Int = 20", "$commentsLast: Int = 30", "$reviewCommentsFirst: Int = 30",
+		"reviews(last: $reviewsLast)", "comments(last: $commentsLast)", "comments(first: $reviewCommentsFirst)",
+		"workflowRun { runAttempt event workflow { name } }",
+		"REOPENED_EVENT", "... on ReopenedEvent",
+	} {
+		if !strings.Contains(Query, want) {
+			t.Errorf("Query lacks %q", want)
+		}
+	}
+}
+
+func TestFragment(t *testing.T) {
+	if !strings.HasPrefix(Fragment, "fragment PRFields on PullRequest") {
+		t.Errorf("Fragment starts %q", Fragment[:min(len(Fragment), 40)])
+	}
+	if strings.Contains(Fragment, "query ") {
+		t.Error("Fragment contains an operation")
+	}
+	if !strings.HasSuffix(Query, Fragment) {
+		t.Error("Fragment is not the tail of Query")
+	}
+	if strings.Count(Fragment, "{") != strings.Count(Fragment, "}") {
+		t.Error("Fragment braces unbalanced")
 	}
 }
