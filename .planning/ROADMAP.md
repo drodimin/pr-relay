@@ -96,7 +96,7 @@ Plans:
 
 **Wave 6** *(blocked on Wave 5 completion)*
 
-- [ ] 02-11-PLAN.md — cobra root, hidden dev watch + idempotent sink, SIGKILL crash loop (SC-1)
+- [x] 02-11-PLAN.md — cobra root, hidden dev watch + idempotent sink, SIGKILL crash loop (SC-1)
 
 **Wave 7** *(blocked on Wave 6 completion)*
 
@@ -151,7 +151,7 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Toolchain, Spikes & Pure Core | 9/9 | Complete   | 2026-11-01 |
-| 2. Durable State & GitHub Poller | 10/12 | In Progress|  |
+| 2. Durable State & GitHub Poller | 11/12 | In Progress|  |
 | 3. herdr Client & Delivery | 0/TBD | Not started | - |
 | 4. Daemon, Control Protocol & CLI | 0/TBD | Not started | - |
 | 5. Packaging, Plugin & Agent Skill | 0/TBD | Not started | - |
