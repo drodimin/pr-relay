@@ -122,7 +122,7 @@ func stepCI(m *model.Memory, s model.Snapshot) []model.Event {
 		m.FailedReported[c.Key] = true
 		evs = append(evs, model.Event{
 			Type:          model.EventCIFailed,
-			Key:           "ci.failed:" + s.HeadOID + ":" + c.Key,
+			Key:           "ci.failed:" + strconv.Itoa(m.Epoch) + ":" + s.HeadOID + ":" + c.Key,
 			CheckName:     c.Name,
 			CheckWorkflow: c.Workflow,
 			CheckURL:      c.URL,
@@ -149,7 +149,7 @@ func stepCI(m *model.Memory, s model.Snapshot) []model.Event {
 	m.SettleSeq++
 	e := model.Event{
 		Type:    model.EventCISettled,
-		Key:     "ci.settled:" + s.HeadOID + ":" + strconv.Itoa(m.SettleSeq),
+		Key:     "ci.settled:" + strconv.Itoa(m.Epoch) + ":" + s.HeadOID + ":" + strconv.Itoa(m.SettleSeq),
 		HeadOID: s.HeadOID,
 		Passed:  len(failing) == 0,
 		Total:   len(s.Checks),

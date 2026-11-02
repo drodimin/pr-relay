@@ -1,6 +1,7 @@
 package diff
 
 import (
+	"fmt"
 	"reflect"
 	"testing"
 
@@ -18,7 +19,7 @@ func TestClosed(t *testing.T) {
 		t.Fatalf("merge: want 1 event, got %+v", steps[0])
 	}
 	e := steps[0][0]
-	if e.Type != model.EventClosed || !e.Merged || e.Key != "closed:MERGED" || e.Actor.Login != "me" {
+	if e.Type != model.EventClosed || !e.Merged || e.Key != "closed:1:MERGED" || e.Actor.Login != "me" {
 		t.Fatalf("merge event wrong: %+v", e)
 	}
 	if len(steps[1]) != 0 {
@@ -31,7 +32,7 @@ func TestClosed(t *testing.T) {
 		t.Fatalf("close: want 1 event, got %+v", steps[0])
 	}
 	e = steps[0][0]
-	if e.Type != model.EventClosed || e.Merged || e.Key != "closed:CLOSED" || e.Actor.Login != "carol" {
+	if e.Type != model.EventClosed || e.Merged || e.Key != "closed:1:CLOSED" || e.Actor.Login != "carol" {
 		t.Fatalf("close event wrong: %+v", e)
 	}
 
@@ -59,13 +60,13 @@ func TestConflict(t *testing.T) {
 	if len(steps[0]) != 1 || !steps[0][0].Conflicting || steps[0][0].Type != model.EventConflict {
 		t.Fatalf("became conflicting: %+v", steps[0])
 	}
-	if steps[0][0].Key != "conflict:h1:b1:CONFLICTING" {
+	if steps[0][0].Key != "conflict:0:h1:b1:CONFLICTING" {
 		t.Fatalf("conflict key: %q", steps[0][0].Key)
 	}
 	if len(steps[1]) != 0 {
 		t.Fatalf("repeat conflicting emitted: %+v", steps[1])
 	}
-	if len(steps[2]) != 1 || steps[2][0].Conflicting || steps[2][0].Key != "conflict:h1:b1:MERGEABLE" {
+	if len(steps[2]) != 1 || steps[2][0].Conflicting || steps[2][0].Key != "conflict:0:h1:b1:MERGEABLE" {
 		t.Fatalf("cleared: %+v", steps[2])
 	}
 }
@@ -164,7 +165,7 @@ func TestCommitsCount(t *testing.T) {
 		t.Fatalf("want 1 commits event, got %+v", steps[0])
 	}
 	e := steps[0][0]
-	if e.Type != model.EventCommits || e.Key != "commits:h2" || e.Count != 2 ||
+	if e.Type != model.EventCommits || e.Key != "commits:1:h2" || e.Count != 2 ||
 		e.OldHeadOID != "h1" || e.HeadOID != "h2" || e.ForcePushed {
 		t.Fatalf("commits event wrong: %+v", e)
 	}
@@ -228,4 +229,97 @@ func TestHeadChangeResetsCI(t *testing.T) {
 	if r.Memory.FailedReported == nil {
 		t.Fatal("FailedReported reset to nil, want empty map")
 	}
+}
+
+func TestEpochKeys(t *testing.T) {
+	t.Run("reopen", func(t *testing.T) {
+		steps, _ := run(
+			snap(),
+			snap(withState("CLOSED"), withClosedBy("carol")),
+			snap(withState("OPEN")),
+			snap(withState("CLOSED"), withClosedBy("carol")),
+		)
+		closed := ofType(flatten(steps), model.EventClosed)
+		if len(closed) != 2 {
+			t.Fatalf("want 2 closed events, got %+v", closed)
+		}
+		if closed[0].Key == closed[1].Key {
+			t.Fatalf("closed keys collide: %q", closed[0].Key)
+		}
+	})
+	t.Run("head return", func(t *testing.T) {
+		steps, _ := run(
+			snap(withHead("h0"), withCommits("h0")),
+			snap(withHead("h1"), withCommits("h0", "h1"), withCheck("ci/test", "COMPLETED", "FAILURE", 1)),
+			snap(withHead("h2"), withCommits("h0", "h1", "h2")),
+			snap(withHead("h1"), withCommits("h0", "h1"), withCheck("ci/test", "COMPLETED", "FAILURE", 1)),
+		)
+		all := flatten(steps)
+		var h1Commits []model.Event
+		for _, e := range ofType(all, model.EventCommits) {
+			if e.HeadOID == "h1" {
+				h1Commits = append(h1Commits, e)
+			}
+		}
+		if len(h1Commits) != 2 || h1Commits[0].Key == h1Commits[1].Key {
+			t.Fatalf("commits keys for h1 visits not distinct: %+v", h1Commits)
+		}
+		f := ofType(all, model.EventCIFailed)
+		if len(f) != 2 || f[0].Key == f[1].Key {
+			t.Fatalf("ci.failed keys for h1 visits not distinct: %+v", f)
+		}
+	})
+	t.Run("settled head return", func(t *testing.T) {
+		pass := withCheck("ci/test", "COMPLETED", "SUCCESS", 1)
+		steps, _ := run(
+			snap(withCommits("h1")),
+			snap(withCommits("h1"), withCheck("ci/test", "IN_PROGRESS", "", 1)),
+			snap(withCommits("h1"), pass),
+			snap(withCommits("h1"), pass),
+			snap(withHead("h2"), withCommits("h1", "h2")),
+			snap(withCommits("h1"), pass),
+			snap(withCommits("h1"), pass),
+		)
+		st := ofType(flatten(steps), model.EventCISettled)
+		if len(st) != 2 || st[0].Key == st[1].Key {
+			t.Fatalf("ci.settled keys for h1 visits not distinct: %+v", st)
+		}
+	})
+	t.Run("baseline epoch", func(t *testing.T) {
+		m := Baseline(snap(withCommits("a", "b", "h1")))
+		if m.Epoch != 0 || m.CommitsTotal != 3 {
+			t.Fatalf("baseline Epoch=%d CommitsTotal=%d, want 0 and 3", m.Epoch, m.CommitsTotal)
+		}
+	})
+}
+
+func TestBigPush(t *testing.T) {
+	visible := make([]string, 30)
+	for i := range visible {
+		visible[i] = fmt.Sprintf("n%02d", i)
+	}
+	visible[29] = "h40"
+	base := snap(withHead("h5"), withCommits("h1", "h2", "h3", "h4", "h5"))
+
+	t.Run("fast-forward beyond window", func(t *testing.T) {
+		steps, m := run(base, snap(withHead("h40"), withCommits(visible...), withCommitsTotal(40)))
+		c := ofType(flatten(steps), model.EventCommits)
+		if len(c) != 1 {
+			t.Fatalf("want 1 commits event, got %+v", c)
+		}
+		e := c[0]
+		if e.ForcePushed || e.Count != 35 || len(e.Authors) != 30 || e.Authors[0].Login != "a-n00" {
+			t.Fatalf("big push mislabelled: %+v", e)
+		}
+		if m.CommitsTotal != 40 {
+			t.Fatalf("CommitsTotal = %d, want 40", m.CommitsTotal)
+		}
+	})
+	t.Run("total grew less than window", func(t *testing.T) {
+		steps, _ := run(base, snap(withHead("h40"), withCommits(visible...), withCommitsTotal(6)))
+		c := ofType(flatten(steps), model.EventCommits)
+		if len(c) != 1 || !c[0].ForcePushed {
+			t.Fatalf("want force-push, got %+v", c)
+		}
+	})
 }

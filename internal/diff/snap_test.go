@@ -57,6 +57,12 @@ func withCommits(oids ...string) func(*model.Snapshot) {
 	}
 }
 
+// withCommitsTotal overrides the total commit count (the window may hold
+// fewer commits than the PR has).
+func withCommitsTotal(n int) func(*model.Snapshot) {
+	return func(s *model.Snapshot) { s.CommitsTotal = n }
+}
+
 func withForcePush(id, before, after, login string) func(*model.Snapshot) {
 	return func(s *model.Snapshot) {
 		s.ForcePushes = append(s.ForcePushes, model.ForcePush{

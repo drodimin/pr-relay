@@ -2,6 +2,21 @@
 // deterministic state machine: Step takes the Memory carried from the previous
 // poll plus a new Snapshot and returns the events and the next Memory. It does
 // no I/O, reads no clock and never formats text (render owns all wording).
+//
+// Event.Key is the dedupe key used by the store and fan-out. Grammar:
+//
+//	closed:<epoch>:<state>
+//	conflict:<epoch>:<head>:<base>:<mergeable>
+//	commits:<epoch>:<head>
+//	ci.failed:<epoch>:<head>:<checkKey>
+//	ci.settled:<epoch>:<head>:<settleSeq>
+//	review:<reviewID>
+//	comment:<commentID>
+//
+// <epoch> is Memory.Epoch. It is bumped on every state change and every head
+// change (WR-02), so a reopen or a head that returns to an earlier SHA never
+// reuses a delivered key. Review and comment keys carry no epoch because
+// GitHub node IDs are globally unique and never repeat.
 package diff
 
 import (
@@ -27,6 +42,8 @@ func Baseline(s model.Snapshot) model.Memory {
 	m.HeadOID = s.HeadOID
 	m.BaseOID = s.BaseOID
 	m.State = s.State
+	m.Epoch = 0
+	m.CommitsTotal = s.CommitsTotal
 	if s.Mergeable == "MERGEABLE" || s.Mergeable == "CONFLICTING" {
 		m.Mergeable = s.Mergeable
 	}

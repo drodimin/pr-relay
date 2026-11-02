@@ -82,14 +82,14 @@ func TestEventOrder(t *testing.T) {
 
 	// The sort itself: closed, conflict, commits by Rank, ties by Key.
 	evs := []model.Event{
-		{Type: model.EventCommits, Key: "commits:h2"},
-		{Type: model.EventConflict, Key: "conflict:h2:b:CONFLICTING"},
-		{Type: model.EventCIFailed, Key: "ci.failed:h2:z"},
-		{Type: model.EventClosed, Key: "closed:MERGED"},
-		{Type: model.EventCIFailed, Key: "ci.failed:h2:a"},
+		{Type: model.EventCommits, Key: "commits:1:h2"},
+		{Type: model.EventConflict, Key: "conflict:1:h2:b:CONFLICTING"},
+		{Type: model.EventCIFailed, Key: "ci.failed:1:h2:z"},
+		{Type: model.EventClosed, Key: "closed:1:MERGED"},
+		{Type: model.EventCIFailed, Key: "ci.failed:1:h2:a"},
 	}
 	sortEvents(evs)
-	want := []string{"closed:MERGED", "conflict:h2:b:CONFLICTING", "commits:h2", "ci.failed:h2:a", "ci.failed:h2:z"}
+	want := []string{"closed:1:MERGED", "conflict:1:h2:b:CONFLICTING", "commits:1:h2", "ci.failed:1:h2:a", "ci.failed:1:h2:z"}
 	for i, k := range want {
 		if evs[i].Key != k {
 			t.Fatalf("sorted[%d] = %q, want %q (all: %+v)", i, evs[i].Key, k, evs)
