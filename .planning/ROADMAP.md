@@ -115,7 +115,7 @@ Plans:
   4. One daemon delivers to panes in two different herdr sessions (different sockets) at the same time.
   5. Closing a pane, reusing its pane id for a different terminal, or herdr reporting the target tab or pane gone cancels that subscription and drops its pending updates. A PR with no deliverable pane is polled at the slowest rate.
 
-**Plans:** 3/8 plans executed
+**Plans:** 5/8 plans executed
 
 Plans:
 **Wave 1**
@@ -126,8 +126,8 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 03-04-PLAN.md — Engine hooks: PendingWake, PRView, AckMany, Cancel + ring, SetPaneReachability with LIFE-08 slowest-rate override
-- [ ] 03-05-PLAN.md — herdr events Stream and per-socket Endpoint with reconnect, backoff, events_lost and Reconnected signal
+- [x] 03-04-PLAN.md — Engine hooks: PendingWake, PRView, AckMany, Cancel + ring, SetPaneReachability with LIFE-08 slowest-rate override
+- [x] 03-05-PLAN.md — herdr events Stream and per-socket Endpoint with reconnect, backoff, events_lost and Reconnected signal
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
@@ -176,6 +176,6 @@ Plans:
 |-------|----------------|--------|-----------|
 | 1. Toolchain, Spikes & Pure Core | 9/9 | Complete   | 2026-11-01 |
 | 2. Durable State & GitHub Poller | 12/12 | Complete   | 2026-11-02 |
-| 3. herdr Client & Delivery | 3/8 | In Progress|  |
+| 3. herdr Client & Delivery | 5/8 | In Progress|  |
 | 4. Daemon, Control Protocol & CLI | 0/TBD | Not started | - |
 | 5. Packaging, Plugin & Agent Skill | 0/TBD | Not started | - |
