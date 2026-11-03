@@ -3,6 +3,7 @@ package poller
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"reflect"
@@ -46,6 +47,9 @@ type memSaver struct {
 	mu    sync.Mutex
 	saves int
 	fail  func(*store.State) bool
+	// notDurable, when set, makes every Save succeed on "disk" but return
+	// store.ErrNotDurable, as a failed directory fsync does.
+	notDurable bool
 }
 
 func (s *memSaver) Save(st *store.State) error {
@@ -53,6 +57,10 @@ func (s *memSaver) Save(st *store.State) error {
 	defer s.mu.Unlock()
 	if s.fail != nil && s.fail(st) {
 		return errors.New("save: disk full")
+	}
+	if s.notDurable {
+		s.saves++
+		return fmt.Errorf("store: save: sync dir: %w", store.ErrNotDurable)
 	}
 	s.saves++
 	return nil
@@ -913,5 +921,32 @@ func TestOnCommitMayPoll(t *testing.T) {
 	}
 	if err := <-inner; err != nil {
 		t.Errorf("PollNow inside OnCommit: %v", err)
+	}
+}
+
+// TestSaveNotDurableStillSwaps covers review WR-05: when Save fails after
+// the rename (ErrNotDurable), disk already holds the new state, so the engine
+// must swap it in. An Ack then really clears the queue in memory.
+func TestSaveNotDurableStillSwaps(t *testing.T) {
+	h := newHarness(t)
+	info := h.sub(prA, "w1:p1")
+	h.pollNow(prA)
+	h.f.addComment(prA, "IC_1", "bob", "User", h.at())
+	h.pollNow(prA)
+	d := h.pending(info.SubID)
+	if len(d.Events) != 1 {
+		t.Fatalf("pending %d, want 1", len(d.Events))
+	}
+	h.saver.mu.Lock()
+	h.saver.notDurable = true
+	h.saver.mu.Unlock()
+	if err := h.e.Ack(info.SubID, d.UpToSeq); err != nil {
+		t.Fatalf("Ack with a non-durable save: %v", err)
+	}
+	if d := h.pending(info.SubID); len(d.Events) != 0 {
+		t.Fatalf("pending %d after Ack, want 0 (memory fell behind disk)", len(d.Events))
+	}
+	if len(h.logs.named("state saved but may not be durable")) == 0 {
+		t.Error("non-durable save was not logged")
 	}
 }

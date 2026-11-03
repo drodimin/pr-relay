@@ -249,11 +249,24 @@ func (e *Engine) mutateLocked(fn func(next *store.State) error) error {
 	if err := fn(next); err != nil {
 		return err
 	}
-	if err := e.saver.Save(next); err != nil {
+	if err := e.save(next); err != nil {
 		return err
 	}
 	e.state = next
 	return nil
+}
+
+// save persists next. A store.ErrNotDurable error means state.json already
+// holds next (only the directory fsync failed), so it is logged and treated
+// as success: the caller must swap next in, or memory would fall behind disk
+// and, for example, re-deliver events an Ack already removed (WR-05).
+func (e *Engine) save(next *store.State) error {
+	err := e.saver.Save(next)
+	if errors.Is(err, store.ErrNotDurable) {
+		e.log.Warn("state saved but may not be durable", "error", err)
+		return nil
+	}
+	return err
 }
 
 func normalizeMask(events []model.EventType) ([]model.EventType, error) {
@@ -902,7 +915,7 @@ func (e *Engine) commit(steps []stepped, viewer string, now time.Time, forced bo
 	}
 
 	if changed {
-		if err := e.saver.Save(next); err != nil {
+		if err := e.save(next); err != nil {
 			return nil, CommitReport{}, err
 		}
 		e.state = next

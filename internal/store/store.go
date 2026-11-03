@@ -22,6 +22,13 @@ const (
 // ErrLocked is returned by Open when another process holds the store.
 var ErrLocked = errors.New("store: state is in use by another pr-relay process")
 
+// ErrNotDurable is wrapped by a Save error that happened after the rename:
+// state.json already holds the new state, but the directory fsync that makes
+// the rename durable failed. Callers must treat the new state as committed
+// (swap it in memory) rather than keep the old one, or memory falls behind
+// disk (review WR-05).
+var ErrNotDurable = errors.New("store: state saved but the rename may not be durable")
+
 // ErrNewerVersion is returned by Open when state.json was written by a newer
 // pr-relay. The file is left untouched so a downgrade cannot wipe state.
 var ErrNewerVersion = errors.New("store: state file was written by a newer pr-relay")
@@ -180,8 +187,10 @@ func (s *Store) quarantine(path string) (*State, error) {
 
 // Save atomically replaces state.json with st: write a 0600 temp file,
 // fsync it (F_FULLFSYNC on darwin), rename it over state.json, then fsync the
-// directory so the rename itself is durable. On any failure the previous
-// state.json is left intact. Save never logs state content.
+// directory so the rename itself is durable. On a failure before the rename
+// the previous state.json is left intact. A failure after the rename (opening,
+// syncing or closing the directory) wraps ErrNotDurable: state.json then
+// already holds st. Save never logs state content.
 func (s *Store) Save(st *State) error {
 	b, err := json.MarshalIndent(st, "", "  ")
 	if err != nil {
@@ -214,14 +223,14 @@ func (s *Store) Save(st *State) error {
 	}
 	d, err := os.Open(s.dir)
 	if err != nil {
-		return fmt.Errorf("store: save: open dir: %w", err)
+		return fmt.Errorf("store: save: open dir: %w: %w", ErrNotDurable, err)
 	}
 	if err := d.Sync(); err != nil {
 		_ = d.Close()
-		return fmt.Errorf("store: save: sync dir: %w", err)
+		return fmt.Errorf("store: save: sync dir: %w: %w", ErrNotDurable, err)
 	}
 	if err := d.Close(); err != nil {
-		return fmt.Errorf("store: save: close dir: %w", err)
+		return fmt.Errorf("store: save: close dir: %w: %w", ErrNotDurable, err)
 	}
 	return nil
 }
