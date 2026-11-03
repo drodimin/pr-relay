@@ -8,7 +8,9 @@ import (
 )
 
 func TestIdentity(t *testing.T) {
-	sess := func(v string) *herdr.AgentSession { return &herdr.AgentSession{Source: "x", Kind: "session_id", Value: v} }
+	sess := func(v string) *herdr.AgentSession {
+		return &herdr.AgentSession{Source: "x", Kind: "session_id", Value: v}
+	}
 	cases := []struct {
 		name        string
 		storedSess  string
