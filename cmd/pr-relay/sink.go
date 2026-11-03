@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -114,14 +115,32 @@ func (s *sink) write(prKey string, evs []store.PendingEvent) error {
 	if buf.Len() == 0 {
 		return nil
 	}
+	// Remember where this write starts. If the write or the fsync fails, the
+	// file is cut back to it, so a partial line (ENOSPC, EIO) never sits in
+	// the middle of the file where the next openSink would reject it as
+	// malformed (review WR-06).
+	fi, err := s.f.Stat()
+	if err != nil {
+		return fmt.Errorf("sink: stat: %w", err)
+	}
+	off := fi.Size()
 	if _, err := s.f.Write(buf.Bytes()); err != nil {
-		return fmt.Errorf("sink: write: %w", err)
+		return s.rollback(off, fmt.Errorf("sink: write: %w", err))
 	}
 	if err := s.f.Sync(); err != nil {
-		return fmt.Errorf("sink: sync: %w", err)
+		return s.rollback(off, fmt.Errorf("sink: sync: %w", err))
 	}
 	s.maxSeq[prKey] = top
 	return nil
+}
+
+// rollback truncates the sink back to off after a failed write and returns
+// cause, joined with any truncate error.
+func (s *sink) rollback(off int64, cause error) error {
+	if err := s.f.Truncate(off); err != nil {
+		return errors.Join(cause, fmt.Errorf("sink: truncate after failed write: %w", err))
+	}
+	return cause
 }
 
 func (s *sink) close() error { return s.f.Close() }
