@@ -49,6 +49,7 @@ func TestLoadMissing(t *testing.T) {
 }
 
 func TestLoadDurations(t *testing.T) {
+	t.Setenv(EnvFastPoll, "1")
 	p := writeConfig(t, "[poll]\nmin_interval = \"100ms\"\nmax_interval = \"200ms\"\n")
 	cfg, warns, err := Load(p)
 	if err != nil {
@@ -162,5 +163,26 @@ func TestDurationRoundTrip(t *testing.T) {
 	}
 	if got != d {
 		t.Fatalf("round trip = %v, want %v", got, d)
+	}
+}
+
+// TestMinIntervalFloor covers review WR-07: config.toml alone cannot set
+// min_interval below MinMinInterval; only the test-only EnvFastPoll can.
+func TestMinIntervalFloor(t *testing.T) {
+	t.Setenv(EnvFastPoll, "")
+	for _, v := range []string{"1ms", "100ms", "9s"} {
+		p := writeConfig(t, "[poll]\nmin_interval = \""+v+"\"\n")
+		if _, _, err := Load(p); err == nil || !strings.Contains(err.Error(), "min_interval") {
+			t.Errorf("min_interval %s: err = %v, want a min_interval error", v, err)
+		}
+	}
+	p := writeConfig(t, "[poll]\nmin_interval = \"10s\"\n")
+	if _, _, err := Load(p); err != nil {
+		t.Errorf("min_interval 10s: %v", err)
+	}
+	t.Setenv(EnvFastPoll, "1")
+	p = writeConfig(t, "[poll]\nmin_interval = \"100ms\"\nmax_interval = \"200ms\"\n")
+	if _, _, err := Load(p); err != nil {
+		t.Errorf("min_interval 100ms with %s=1: %v", EnvFastPoll, err)
 	}
 }

@@ -18,6 +18,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/drodimin/pr-relay/internal/config"
 	"github.com/drodimin/pr-relay/internal/model"
 )
 
@@ -82,6 +83,8 @@ func (h *harness) env() []string {
 		"PR_RELAY_STATE_DIR="+h.stateDir,
 		envGraphQLURL+"="+h.gh.url(),
 		"GH_TOKEN=test",
+		// The test config polls every 100ms, below the user-facing floor.
+		config.EnvFastPoll+"=1",
 	)
 }
 

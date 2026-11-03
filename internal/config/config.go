@@ -9,9 +9,10 @@
 //   - D-07 cadence: per-PR intervals back off from min_interval (default 1m)
 //     to max_interval (default 16m); batches hold up to batch_size PRs
 //     (default 20).
-//   - D-08 config: durations are Go duration strings ("100ms", "16m");
+//   - D-08 config: durations are Go duration strings ("30s", "16m");
 //     unknown keys only warn; out-of-range values are rejected so a bad file
-//     cannot make the poller spin or stall. pending_cap (default 200) bounds
+//     cannot make the poller spin or stall. min_interval must be at least
+//     MinMinInterval (10s); only the test-only EnvFastPoll lowers it. pending_cap (default 200) bounds
 //     each subscription's undelivered queue.
 package config
 
@@ -38,6 +39,27 @@ const (
 
 // MaxBatchSize is the largest accepted batch_size.
 const MaxBatchSize = 20
+
+// MinMinInterval is the smallest accepted min_interval (review WR-07). A
+// typo such as "1ms" would otherwise make every PR due again at once and send
+// batches back-to-back until the spend cap stops them.
+const MinMinInterval = 10 * time.Second
+
+// EnvFastPoll, set to "1", lowers the min_interval floor to 1ms. It is a
+// test-only override for the crash and dev-harness tests, which drive the
+// poller with 100ms cadences; config.toml alone can never go below
+// MinMinInterval.
+const EnvFastPoll = "PR_RELAY_TEST_FAST_POLL"
+
+const fastPollFloor = time.Millisecond
+
+// minIntervalFloor returns the smallest min_interval Validate accepts.
+func minIntervalFloor() time.Duration {
+	if os.Getenv(EnvFastPoll) == "1" {
+		return fastPollFloor
+	}
+	return MinMinInterval
+}
 
 // Duration is a time.Duration that decodes from a Go duration string.
 type Duration struct{ time.Duration }
@@ -121,9 +143,10 @@ func Load(path string) (Config, []string, error) {
 // overspend.
 func (c Config) Validate() error {
 	p := c.Poll
+	floor := minIntervalFloor()
 	switch {
-	case p.MinInterval.Duration <= 0:
-		return fmt.Errorf("config: min_interval: must be positive, got %s", p.MinInterval.Duration)
+	case p.MinInterval.Duration < floor:
+		return fmt.Errorf("config: min_interval: must be at least %s, got %s", floor, p.MinInterval.Duration)
 	case p.MaxInterval.Duration < p.MinInterval.Duration:
 		return fmt.Errorf("config: max_interval: %s is below min_interval %s", p.MaxInterval.Duration, p.MinInterval.Duration)
 	case p.MaxStretchedInterval.Duration < p.MaxInterval.Duration:
