@@ -323,3 +323,19 @@ func TestBigPush(t *testing.T) {
 		}
 	})
 }
+
+// TestBaselineClosed covers review WR-04: only MERGED and CLOSED snapshots
+// yield the one-time baseline closed event, keyed under epoch 0.
+func TestBaselineClosed(t *testing.T) {
+	if _, ok := BaselineClosed(model.Snapshot{State: "OPEN"}); ok {
+		t.Error("OPEN produced a baseline closed event")
+	}
+	e, ok := BaselineClosed(model.Snapshot{State: "MERGED", MergedBy: model.Actor{Login: "alice", Type: "User"}})
+	if !ok || e.Type != model.EventClosed || !e.Merged || e.Key != "closed:0:MERGED" || e.Actor.Login != "alice" {
+		t.Errorf("MERGED -> %+v, %t", e, ok)
+	}
+	e, ok = BaselineClosed(model.Snapshot{State: "CLOSED", ClosedBy: model.Actor{Login: "bob", Type: "User"}})
+	if !ok || e.Merged || e.Key != "closed:0:CLOSED" || e.Actor.Login != "bob" {
+		t.Errorf("CLOSED -> %+v, %t", e, ok)
+	}
+}

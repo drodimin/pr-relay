@@ -16,6 +16,25 @@ const (
 	mergeableMergeable   = "MERGEABLE"
 )
 
+// BaselineClosed returns the one-time closed event for a PR that is already
+// MERGED or CLOSED when it is first baselined (review WR-04). Baseline itself
+// stays silent; the poller adds this event so an agent that subscribes to a
+// finished PR still hears that it is finished. The key is built under the
+// baseline epoch (0), which no later lifecycle step reuses, so it can never
+// repeat.
+func BaselineClosed(s model.Snapshot) (model.Event, bool) {
+	if s.State != stateMerged && s.State != stateClosed {
+		return model.Event{}, false
+	}
+	e := model.Event{Type: model.EventClosed, Key: "closed:0:" + s.State, Merged: s.State == stateMerged}
+	if e.Merged {
+		e.Actor = s.MergedBy
+	} else {
+		e.Actor = s.ClosedBy
+	}
+	return e, true
+}
+
 // stepLifecycle detects closed, conflict and commits/force-push events and
 // updates the lifecycle fields of m. A head change resets per-head CI memory
 // before the CI step runs.

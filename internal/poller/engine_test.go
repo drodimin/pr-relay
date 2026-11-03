@@ -638,6 +638,56 @@ func TestMergedTerminal(t *testing.T) {
 	}
 }
 
+// TestMergedAtBaseline covers review WR-04: subscribing to a PR that is
+// already merged delivers one closed event at baseline, and a later
+// subscriber to the Terminal record is told so and is given no poll time.
+func TestMergedAtBaseline(t *testing.T) {
+	h := newHarness(t)
+	h.f.mutate(prA, func(pr map[string]any) {
+		pr["state"] = "MERGED"
+		pr["merged"] = true
+		pr["mergedBy"] = actorJSON("alice", "User")
+	})
+	info := h.sub(prA, "w1:p1")
+	h.pollNow(prA)
+	d := h.pending(info.SubID)
+	if len(d.Events) != 1 || d.Events[0].Event.Type != model.EventClosed || !d.Events[0].Event.Merged ||
+		d.Events[0].Event.Actor.Login != "alice" {
+		t.Fatalf("pending = %+v, want one closed: merged by alice", d.Events)
+	}
+	if !h.record(prA).Terminal {
+		t.Fatal("merged PR not Terminal")
+	}
+	second := h.sub(prA, "w1:p2")
+	if !second.Terminal || !second.NextPollAt.IsZero() || second.Interval != 0 {
+		t.Errorf("second sub to merged PR: Terminal %t Interval %v NextPollAt %v", second.Terminal, second.Interval, second.NextPollAt)
+	}
+	if iv, next := h.e.Schedule(prA); iv != 0 || !next.IsZero() {
+		t.Errorf("Schedule(terminal) = %v, %v, want zero", iv, next)
+	}
+}
+
+// TestClosedAtBaseline: a PR already closed (not merged) at baseline also
+// notifies once, and a further identical poll does not repeat it.
+func TestClosedAtBaseline(t *testing.T) {
+	h := newHarness(t)
+	h.f.mutate(prA, func(pr map[string]any) { pr["state"] = "CLOSED" })
+	info := h.sub(prA, "w1:p1")
+	h.pollNow(prA)
+	d := h.pending(info.SubID)
+	if len(d.Events) != 1 || d.Events[0].Event.Type != model.EventClosed || d.Events[0].Event.Merged {
+		t.Fatalf("pending = %+v, want one closed: closed", d.Events)
+	}
+	if err := h.e.Ack(info.SubID, d.UpToSeq); err != nil {
+		t.Fatal(err)
+	}
+	h.clk.Advance(time.Minute)
+	h.pollNow(prA)
+	if d := h.pending(info.SubID); len(d.Events) != 0 {
+		t.Fatalf("closed event repeated: %+v", d.Events)
+	}
+}
+
 func TestPendingCapDropped(t *testing.T) {
 	h := newHarness(t, func(o *Options) { o.Config.Subscriptions.PendingCap = 3 })
 	info := h.sub(prA, "w1:p1")

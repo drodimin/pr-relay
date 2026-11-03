@@ -71,6 +71,9 @@ type SubInfo struct {
 	CoSubscribers []PaneRef
 	Interval      time.Duration
 	NextPollAt    time.Time
+	// Terminal is true when the PR is already merged. It is never polled
+	// again, so Interval and NextPollAt are zero (WR-04).
+	Terminal bool
 }
 
 // Drain is a copy of one subscription's pending queue. UpToSeq is the value
@@ -345,7 +348,9 @@ func (e *Engine) Subscribe(req SubRequest) (SubInfo, error) {
 		}
 		info.CoSubscribers = append(info.CoSubscribers, p)
 	}
-	info.Interval, info.NextPollAt = e.scheduleLocked(e.state.PRs[key], now)
+	rec := e.state.PRs[key]
+	info.Interval, info.NextPollAt = e.scheduleLocked(rec, now)
+	info.Terminal = rec != nil && rec.Terminal
 	e.mu.Unlock()
 	if newRecord {
 		e.poke()
@@ -492,7 +497,8 @@ func (e *Engine) CoSubscribers(ref model.PRRef) []PaneRef {
 }
 
 // Schedule returns the PR's current interval and next poll time. A PR never
-// polled is due now. An unwatched PR returns zero values.
+// polled is due now. An unwatched PR, or a Terminal (merged) one that is
+// never polled again, returns zero values.
 func (e *Engine) Schedule(ref model.PRRef) (time.Duration, time.Time) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -500,7 +506,7 @@ func (e *Engine) Schedule(ref model.PRRef) (time.Duration, time.Time) {
 }
 
 func (e *Engine) scheduleLocked(rec *store.PRRecord, now time.Time) (time.Duration, time.Time) {
-	if rec == nil {
+	if rec == nil || rec.Terminal {
 		return 0, time.Time{}
 	}
 	p := e.cfg.Poll
@@ -662,6 +668,13 @@ func (e *Engine) pollRefsLocked(ctx context.Context, keys []string, forced bool)
 		steps[i] = stepped{target: t, item: itemFor(res.Items, i, t.ref)}
 		if steps[i].item.Err == nil {
 			steps[i].res = diff.Step(t.mem, steps[i].item.Snapshot)
+			if !t.mem.Baselined {
+				// The baseline is silent, but a PR that is already
+				// merged or closed would then never notify (WR-04).
+				if ev, ok := diff.BaselineClosed(steps[i].item.Snapshot); ok {
+					steps[i].res.Events = append(steps[i].res.Events, ev)
+				}
+			}
 			if steps[i].res.Gap {
 				gapped = append(gapped, i)
 			}
