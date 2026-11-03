@@ -52,8 +52,11 @@ type SubRequest struct {
 	HerdrSocket  string
 	PaneID       string
 	AgentSession string
-	TerminalID   string
-	Events       []model.EventType
+	// AgentKind is the herdr agent kind (e.g. "codex") seen at subscribe
+	// time, the D-13 fallback identity.
+	AgentKind  string
+	TerminalID string
+	Events     []model.EventType
 }
 
 // PaneRef names one subscribed herdr pane.
@@ -77,12 +80,41 @@ type SubInfo struct {
 }
 
 // Drain is a copy of one subscription's pending queue. UpToSeq is the value
-// to Ack to clear everything in it, the drop marker included.
+// to Ack to clear everything in it, the drop marker included. DroppedSeq is
+// the drop marker's sequence number (zero when there is none).
 type Drain struct {
-	Events  []store.PendingEvent
-	Dropped int
-	UpToSeq uint64
+	Events     []store.PendingEvent
+	Dropped    int
+	DroppedSeq uint64
+	UpToSeq    uint64
 }
+
+// PRView is a PR's current polled state, read at delivery time (DLV-07).
+type PRView struct {
+	Ref       model.PRRef
+	HeadOID   string
+	Mergeable string
+	State     string
+	Baselined bool
+}
+
+// Cancellation reasons used by the delivery manager (LIFE-02, LIFE-04).
+const (
+	ReasonPaneClosed       = "pane_closed"
+	ReasonPaneGone         = "pane_gone"
+	ReasonIdentityMismatch = "identity_mismatch"
+)
+
+// Cancellation records one subscription cancelled by the daemon (D-17). The
+// most recent ones are kept in memory for Phase 4 status; they are never
+// persisted.
+type Cancellation struct {
+	SubID, PR, HerdrSocket, PaneID, Reason string
+	At                                     time.Time
+}
+
+// maxCancellations caps the in-memory cancellation ring (T-03-14).
+const maxCancellations = 50
 
 // PollResult is the outcome for one PR of a poll.
 type PollResult struct {
@@ -163,22 +195,27 @@ type Engine struct {
 	mu     sync.Mutex
 	pollMu sync.Mutex
 
-	state    *store.State
-	saver    Saver
-	fetch    Fetcher
-	cfg      config.Config
-	log      *slog.Logger
-	budget   *Budget
-	stretch  float64
-	wake     chan struct{}
-	onCommit func(CommitReport)
-	now      func() time.Time
+	state   *store.State
+	saver   Saver
+	fetch   Fetcher
+	cfg     config.Config
+	log     *slog.Logger
+	budget  *Budget
+	stretch float64
+	wake    chan struct{}
+	// pendingWake is the delivery manager's signal, separate from wake,
+	// which the scheduler consumes.
+	pendingWake chan struct{}
+	onCommit    func(CommitReport)
+	now         func() time.Time
 
 	// Scheduler and Status state (scheduler.go, status.go), guarded by mu.
 	auth        AuthState
 	authRetryAt time.Time
 	quarPath    string
 	quarAt      time.Time
+	// cancels is the recent-cancellations ring, newest last (D-17).
+	cancels []Cancellation
 	// running makes a second concurrent Run fail instead of racing.
 	running atomic.Bool
 }
@@ -200,15 +237,16 @@ func New(o Options) (*Engine, error) {
 		o.State.Subs = map[string]*store.Subscription{}
 	}
 	e := &Engine{
-		state:    o.State,
-		saver:    o.Saver,
-		fetch:    o.Fetcher,
-		cfg:      o.Config,
-		log:      o.Logger,
-		stretch:  1,
-		wake:     make(chan struct{}, 1),
-		onCommit: o.OnCommit,
-		now:      o.Now,
+		state:       o.State,
+		saver:       o.Saver,
+		fetch:       o.Fetcher,
+		cfg:         o.Config,
+		log:         o.Logger,
+		stretch:     1,
+		wake:        make(chan struct{}, 1),
+		pendingWake: make(chan struct{}, 1),
+		onCommit:    o.OnCommit,
+		now:         o.Now,
 	}
 	if e.log == nil {
 		e.log = slog.Default()
@@ -231,6 +269,20 @@ func (e *Engine) Wake() <-chan struct{} { return e.wake }
 func (e *Engine) poke() {
 	select {
 	case e.wake <- struct{}{}:
+	default:
+	}
+}
+
+// PendingWake returns a channel that fires after committed new pending
+// events or drop markers, and after a re-subscribe re-filters a queue. It is
+// distinct from Wake, which the scheduler consumes. A value means "look
+// again", not a count: several commits may collapse into one value.
+func (e *Engine) PendingWake() <-chan struct{} { return e.pendingWake }
+
+// pokePending is non-blocking, so it is safe to call while holding e.mu.
+func (e *Engine) pokePending() {
+	select {
+	case e.pendingWake <- struct{}{}:
 	default:
 	}
 }
@@ -313,6 +365,7 @@ func (e *Engine) Subscribe(req SubRequest) (SubInfo, error) {
 	now := e.now()
 	created := false
 	newRecord := false
+	refiltered := false
 	err = e.mutateLocked(func(next *store.State) error {
 		rec := next.PRs[key]
 		if rec == nil {
@@ -329,10 +382,12 @@ func (e *Engine) Subscribe(req SubRequest) (SubInfo, error) {
 		if sub := next.Subs[id]; sub != nil {
 			sub.Events = mask
 			sub.AgentSession = req.AgentSession
+			sub.AgentKind = req.AgentKind
 			sub.TerminalID = req.TerminalID
 			sub.UpdatedAt = now
 			sub.ClockAt = now
 			sub.Pending = refilter(sub.Pending, mask)
+			refiltered = true
 			return nil
 		}
 		created = true
@@ -342,6 +397,7 @@ func (e *Engine) Subscribe(req SubRequest) (SubInfo, error) {
 			HerdrSocket:  req.HerdrSocket,
 			PaneID:       req.PaneID,
 			AgentSession: req.AgentSession,
+			AgentKind:    req.AgentKind,
 			TerminalID:   req.TerminalID,
 			Events:       mask,
 			CreatedAt:    now,
@@ -368,25 +424,79 @@ func (e *Engine) Subscribe(req SubRequest) (SubInfo, error) {
 	if newRecord {
 		e.poke()
 	}
+	if refiltered {
+		e.pokePending()
+	}
 	return info, nil
 }
 
 // Unsubscribe removes a subscription. The PR record goes with the last one.
 func (e *Engine) Unsubscribe(subID string) error {
-	return e.mutate(func(next *store.State) error {
-		sub := next.Subs[subID]
-		if sub == nil {
-			return ErrUnknownSub
+	return e.mutate(func(next *store.State) error { return unsubscribeIn(next, subID) })
+}
+
+// unsubscribeIn removes subID (and its pending queue) from next, and the PR
+// record with its last subscription.
+func unsubscribeIn(next *store.State, subID string) error {
+	sub := next.Subs[subID]
+	if sub == nil {
+		return ErrUnknownSub
+	}
+	delete(next.Subs, subID)
+	for _, s := range next.Subs {
+		if s.PR == sub.PR {
+			return nil
 		}
-		delete(next.Subs, subID)
-		for _, s := range next.Subs {
-			if s.PR == sub.PR {
-				return nil
-			}
-		}
-		delete(next.PRs, sub.PR)
-		return nil
-	})
+	}
+	delete(next.PRs, sub.PR)
+	return nil
+}
+
+// Cancel removes a subscription on the daemon's own initiative (pane closed,
+// pane gone, identity mismatch; LIFE-02, LIFE-04). Like Unsubscribe it drops
+// the pending queue and, with the last subscription, the PR record. Each
+// cancellation is logged with sub, PR, pane, socket and reason; nothing is
+// sent to the pane (D-17). The newest 50 are kept for RecentCancellations.
+func (e *Engine) Cancel(subID, reason string) error {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	sub := e.state.Subs[subID]
+	if sub == nil {
+		return ErrUnknownSub
+	}
+	c := Cancellation{SubID: subID, PR: sub.PR, HerdrSocket: sub.HerdrSocket, PaneID: sub.PaneID, Reason: reason}
+	if err := e.mutateLocked(func(next *store.State) error { return unsubscribeIn(next, subID) }); err != nil {
+		return err
+	}
+	c.At = e.now()
+	e.log.Info("subscription cancelled",
+		"sub", c.SubID, "pr", c.PR, "pane", c.PaneID, "socket", c.HerdrSocket, "reason", c.Reason)
+	e.cancels = append(e.cancels, c)
+	if over := len(e.cancels) - maxCancellations; over > 0 {
+		e.cancels = append([]Cancellation(nil), e.cancels[over:]...)
+	}
+	return nil
+}
+
+// RecentCancellations returns a copy of the newest cancellations, oldest
+// first.
+func (e *Engine) RecentCancellations() []Cancellation {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return append([]Cancellation(nil), e.cancels...)
+}
+
+// PRView returns the PR's current polled state. ok is false when key is not
+// watched.
+func (e *Engine) PRView(key string) (PRView, bool) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	rec := e.state.PRs[key]
+	if rec == nil {
+		return PRView{}, false
+	}
+	m := rec.Memory
+	return PRView{Ref: rec.Ref, HeadOID: m.HeadOID, Mergeable: m.Mergeable, State: m.State, Baselined: m.Baselined}, true
 }
 
 // Keep resets only the subscription's ClockAt (D-14).
@@ -456,7 +566,7 @@ func (e *Engine) Pending(subID string) (Drain, error) {
 	if sub == nil {
 		return Drain{}, ErrUnknownSub
 	}
-	d := Drain{Events: copyPending(sub.Pending), Dropped: sub.Dropped, UpToSeq: sub.DroppedSeq}
+	d := Drain{Events: copyPending(sub.Pending), Dropped: sub.Dropped, DroppedSeq: sub.DroppedSeq, UpToSeq: sub.DroppedSeq}
 	for _, p := range sub.Pending {
 		d.UpToSeq = max(d.UpToSeq, p.Seq)
 	}
@@ -471,18 +581,43 @@ func (e *Engine) Ack(subID string, upToSeq uint64) error {
 		if sub == nil {
 			return ErrUnknownSub
 		}
-		var kept []store.PendingEvent
-		for _, p := range sub.Pending {
-			if p.Seq > upToSeq {
-				kept = append(kept, p)
+		ackSub(sub, upToSeq)
+		return nil
+	})
+}
+
+// AckMany acks several subscriptions in one Save (DLV-04). Subscriptions
+// that no longer exist (cancelled meanwhile) are skipped, not errors. An
+// empty map saves nothing. A failed Save leaves the state unchanged.
+func (e *Engine) AckMany(acks map[string]uint64) error {
+	if len(acks) == 0 {
+		return nil
+	}
+	return e.mutate(func(next *store.State) error {
+		for id, upTo := range acks {
+			sub := next.Subs[id]
+			if sub == nil {
+				continue
 			}
-		}
-		sub.Pending = kept
-		if sub.DroppedSeq != 0 && sub.DroppedSeq <= upToSeq {
-			sub.Dropped, sub.DroppedSeq = 0, 0
+			ackSub(sub, upTo)
 		}
 		return nil
 	})
+}
+
+// ackSub drops sub's pending events with Seq <= upToSeq and clears the drop
+// marker when upToSeq covers it.
+func ackSub(sub *store.Subscription, upToSeq uint64) {
+	var kept []store.PendingEvent
+	for _, p := range sub.Pending {
+		if p.Seq > upToSeq {
+			kept = append(kept, p)
+		}
+	}
+	sub.Pending = kept
+	if sub.DroppedSeq != 0 && sub.DroppedSeq <= upToSeq {
+		sub.Dropped, sub.DroppedSeq = 0, 0
+	}
 }
 
 // panesLocked lists every pane subscribed to key, sorted.
@@ -821,6 +956,9 @@ func (e *Engine) commit(steps []stepped, viewer string, now time.Time, forced bo
 
 	next := e.state.Clone()
 	changed := false
+	// added is set when a sub got new pending events or a drop marker, so
+	// delivery is told after the save (PendingWake).
+	added := false
 	if viewer != "" && viewer != next.Viewer {
 		next.Viewer = viewer
 		changed = true
@@ -891,14 +1029,19 @@ func (e *Engine) commit(steps []stepped, viewer string, now time.Time, forced bo
 				changed = true
 			}
 			for _, sub := range subsByKey[st.key] {
+				before := sub.DroppedSeq
 				if appendPending(sub, delivered, &next.Seq, limit, now) > 0 {
-					changed = true
+					changed, added = true, true
+				}
+				if sub.DroppedSeq != before {
+					// Cap overflow set a new drop marker.
+					changed, added = true, true
 				}
 				if st.gapLost {
 					sub.Dropped++
 					next.Seq++
 					sub.DroppedSeq = next.Seq
-					changed = true
+					changed, added = true, true
 				}
 			}
 			if st.item.Snapshot.State == "MERGED" && !rec.Terminal {
@@ -919,6 +1062,9 @@ func (e *Engine) commit(steps []stepped, viewer string, now time.Time, forced bo
 			return nil, CommitReport{}, err
 		}
 		e.state = next
+		if added {
+			e.pokePending()
+		}
 	} else {
 		for _, p := range polled {
 			if rec := e.state.PRs[p.key]; rec != nil && rec.Gen == p.gen {
