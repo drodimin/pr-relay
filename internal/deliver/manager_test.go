@@ -206,6 +206,7 @@ func TestCancelPaneClosed(t *testing.T) {
 		h.advance(3 * time.Second)
 		h.srv(sockA).ClosePane(testPane)
 		synctest.Wait()
+		calls := h.srv(sockA).CallCount("agent.get")
 		h.advance(time.Minute)
 		wantPromptCount(t, h.srv(sockA), 0)
 		got := map[string]string{}
@@ -218,8 +219,8 @@ func TestCancelPaneClosed(t *testing.T) {
 		if !h.eng.hasSub(b.ID) {
 			t.Error("same pane id on the other socket was cancelled")
 		}
-		if n := h.srv(sockA).CallCount("agent.get"); n != 1 {
-			t.Errorf("agent.get after close: calls = %d, want 1 (worker kept running)", n)
+		if n := h.srv(sockA).CallCount("agent.get"); n != calls {
+			t.Errorf("agent.get after close: calls = %d, want %d (worker kept running)", n, calls)
 		}
 	})
 }
