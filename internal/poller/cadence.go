@@ -68,6 +68,17 @@ func NextDue(lastPoll, anchor time.Time, min, max, maxStretched time.Duration, s
 	return lastPoll.Add(Effective(base, stretch, jitter, maxStretched))
 }
 
+// NextDueBase is NextDue with the base interval given rather than derived
+// from the quiet ramp. It is used when the base is overridden, as for a PR
+// with no pane able to receive (LIFE-08). A zero lastPoll returns the zero
+// time (due now).
+func NextDueBase(lastPoll time.Time, base, maxStretched time.Duration, stretch, jitter float64) time.Time {
+	if lastPoll.IsZero() {
+		return time.Time{}
+	}
+	return lastPoll.Add(Effective(base, stretch, jitter, maxStretched))
+}
+
 // CoalesceWindow returns how far ahead of its due time a PR with the given
 // interval may be pulled into the current batch: min(15s, interval/4).
 func CoalesceWindow(interval time.Duration) time.Duration {

@@ -39,6 +39,10 @@ type Status struct {
 	QuarantinedPath string
 	QuarantinedAt   time.Time
 
+	// Cancellations counts the in-memory recent-cancellations ring (D-17);
+	// RecentCancellations returns the entries.
+	Cancellations int
+
 	// PRErrors maps PR key to its last error class, for PRs that have one.
 	PRErrors map[string]string
 }
@@ -62,6 +66,7 @@ func (e *Engine) Status() Status {
 		Subs:            len(e.state.Subs),
 		QuarantinedPath: e.quarPath,
 		QuarantinedAt:   e.quarAt,
+		Cancellations:   len(e.cancels),
 	}
 	if s.Auth.State == "" {
 		s.Auth.State = AuthUnknown
