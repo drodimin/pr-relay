@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"net/http"
 	"reflect"
 	"strconv"
 	"sync"
@@ -491,6 +492,30 @@ func TestGapRefetch(t *testing.T) {
 	}
 	if d.Dropped != 0 {
 		t.Errorf("Dropped = %d after a resolved gap", d.Dropped)
+	}
+}
+
+// TestGapRefetchSecondaryLimitBacksOff covers review WR-01: a secondary rate
+// limit on the wide re-fetch must start the same backoff as one on the first
+// batch, and the batch must not count as clean.
+func TestGapRefetchSecondaryLimitBacksOff(t *testing.T) {
+	h := newHarness(t)
+	h.sub(prA, "w1:p1")
+	h.pollNow(prA)
+	for i := 0; i < 40; i++ {
+		h.f.addComment(prA, "IC_"+strconv.Itoa(i), "bob", "User", h.at())
+	}
+	h.f.set(func(f *fakeGH) {
+		f.wideStatus = []fakeResp{{status: http.StatusTooManyRequests, header: http.Header{"Retry-After": {"30"}}, body: `{}`}}
+	})
+	if _, err := h.e.PollNow(context.Background(), prA); err != nil {
+		t.Logf("PollNow: %v", err)
+	}
+	h.e.mu.Lock()
+	until, streak := h.e.budget.SecondaryUntil, h.e.budget.SecondaryStreak
+	h.e.mu.Unlock()
+	if streak == 0 || !until.After(h.clk.Now()) {
+		t.Fatalf("secondary limit on re-fetch ignored: streak %d until %v (now %v)", streak, until, h.clk.Now())
 	}
 }
 

@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/drodimin/pr-relay/internal/ghclient"
+	"github.com/drodimin/pr-relay/internal/ghquery"
 	"github.com/drodimin/pr-relay/internal/model"
 	"github.com/drodimin/pr-relay/internal/store"
 )
@@ -39,6 +40,9 @@ type fakeGH struct {
 	requests   [][]string                // PR keys per request, alias order
 	vars       []map[string]any          // variables per request
 	nextStatus []fakeResp
+	// wideStatus scripts responses for wide-window (gap re-fetch) requests
+	// only, in order; normal-window requests are unaffected.
+	wideStatus []fakeResp
 	remaining  int
 	cost       int
 	resetAt    string
@@ -313,6 +317,11 @@ func (f *fakeGH) RoundTrip(req *http.Request) (*http.Response, error) {
 	defer f.mu.Unlock()
 	if reject {
 		return f.response(req, http.StatusUnauthorized, nil, `{"message":"Bad credentials"}`), nil
+	}
+	if len(f.wideStatus) > 0 && toInt(in.Variables["commentsLast"]) == ghquery.WideWindow.CommentsLast {
+		r := f.wideStatus[0]
+		f.wideStatus = f.wideStatus[1:]
+		return f.response(req, r.status, r.header, r.body), nil
 	}
 	if len(f.nextStatus) > 0 {
 		r := f.nextStatus[0]

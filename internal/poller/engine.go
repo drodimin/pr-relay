@@ -634,7 +634,6 @@ func (e *Engine) pollRefs(ctx context.Context, keys []string, forced bool) ([]Po
 	e.mu.Lock()
 	e.budget.Record(now, res.RateLimit.Cost)
 	e.budget.Observe(res.RateLimit.Limit, res.RateLimit.Remaining, res.ResetAt, res.RateLimit.Cost, len(refs))
-	e.budget.OnClean()
 	e.mu.Unlock()
 
 	steps := make([]stepped, len(targets))
@@ -649,6 +648,7 @@ func (e *Engine) pollRefs(ctx context.Context, keys []string, forced bool) ([]Po
 		}
 	}
 	nodeCount := res.RateLimit.NodeCount
+	rateLimited := false
 	if len(gapped) > 0 {
 		wref := make([]model.PRRef, len(gapped))
 		for j, i := range gapped {
@@ -659,6 +659,9 @@ func (e *Engine) pollRefs(ctx context.Context, keys []string, forced bool) ([]Po
 			if ctx.Err() != nil {
 				return nil, werr
 			}
+			// A rate limit on the re-fetch must back off exactly like one
+			// on the first batch (D-07), or the next chunk hits it again.
+			rateLimited = e.applyRateLimit(now, werr)
 			e.log.Warn("gap re-fetch failed", "prs", len(wref), "error", errClass(werr))
 			for _, i := range gapped {
 				steps[i].gapLost = true
@@ -682,6 +685,13 @@ func (e *Engine) pollRefs(ctx context.Context, keys []string, forced bool) ([]Po
 				steps[i].gapLost = steps[i].res.Gap
 			}
 		}
+	}
+	// The batch counts as clean only once every fetch in it, the gap
+	// re-fetch included, has come back without a rate limit.
+	if !rateLimited {
+		e.mu.Lock()
+		e.budget.OnClean()
+		e.mu.Unlock()
 	}
 
 	results, report, err := e.commit(steps, res.Viewer, now, forced, cost)
@@ -725,16 +735,9 @@ func (e *Engine) batchFailed(ctx context.Context, targets []target, now time.Tim
 	if ctx.Err() != nil {
 		return
 	}
-	var se *ghclient.SecondaryLimitError
-	var pe *ghclient.PrimaryExhaustedError
 	class := errClass(err)
+	e.applyRateLimit(now, err)
 	e.mu.Lock()
-	switch {
-	case errors.As(err, &se):
-		e.budget.OnSecondary(now, se.RetryAfter)
-	case errors.As(err, &pe):
-		e.budget.OnPrimaryExhausted(pe.ResetAt)
-	}
 	for _, t := range targets {
 		if rec := e.state.PRs[t.key]; rec != nil && rec.Gen == t.gen {
 			rec.LastPollAt = now
@@ -743,6 +746,25 @@ func (e *Engine) batchFailed(ctx context.Context, targets []target, now time.Tim
 	}
 	e.mu.Unlock()
 	e.log.Warn("poll failed", "prs", len(targets), "error", class)
+}
+
+// applyRateLimit feeds a secondary or primary rate-limit error into the
+// budget's backoff and reports whether err was one. Callers must not hold
+// e.mu.
+func (e *Engine) applyRateLimit(now time.Time, err error) bool {
+	var se *ghclient.SecondaryLimitError
+	var pe *ghclient.PrimaryExhaustedError
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	switch {
+	case errors.As(err, &se):
+		e.budget.OnSecondary(now, se.RetryAfter)
+		return true
+	case errors.As(err, &pe):
+		e.budget.OnPrimaryExhausted(pe.ResetAt)
+		return true
+	}
+	return false
 }
 
 // commit applies stepped results to a clone of the live state and saves it.
