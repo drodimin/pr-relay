@@ -1,5 +1,6 @@
 // Package herdrtest is an in-process fake herdr (protocol 22) for tests. It
-// reproduces the request-side wire quirks verified against herdr 0.9.5:
+// reproduces the wire quirks verified against herdr 0.9.5 (events.subscribe
+// is described in subscribe.go):
 //
 //   - one response per connection, then close (a second request on the same
 //     connection is never answered)
@@ -112,6 +113,13 @@ type Server struct {
 	ln       net.Listener
 	sockPath string
 	sockDir  string
+
+	// events.subscribe state (subscribe.go).
+	subs         map[*subscriber]struct{}
+	subscribes   int
+	lastSub      []map[string]any
+	closeOnWrite int
+	protocol     int
 }
 
 // New returns an empty fake herdr. Its listener (if any) and connections
@@ -123,6 +131,8 @@ func New(tb testing.TB) *Server {
 		changed:  make(chan struct{}),
 		failNext: map[string][]string{},
 		conns:    map[net.Conn]struct{}{},
+		subs:     map[*subscriber]struct{}{},
+		protocol: herdr.Protocol,
 	}
 	tb.Cleanup(func() {
 		s.Stop()
@@ -371,6 +381,7 @@ func (s *Server) Stop() {
 	}
 	path := s.sockPath
 	s.broadcastLocked()
+	s.dropSubscribersLocked()
 	s.mu.Unlock()
 	if ln != nil {
 		_ = ln.Close()
@@ -508,7 +519,7 @@ func (s *Server) reply(sc *serverConn, id string, result any, werr *wireError) {
 func (s *Server) dispatch(sc *serverConn, method string, params json.RawMessage) (result any, werr *wireError, send bool) {
 	switch method {
 	case "ping":
-		return map[string]any{"type": "pong", "version": "0.9.5", "protocol": herdr.Protocol,
+		return map[string]any{"type": "pong", "version": "0.9.5", "protocol": s.currentProtocol(),
 			"capabilities": map[string]any{}}, nil, true
 	case "agent.get":
 		var p struct {
