@@ -91,6 +91,9 @@ func (e *Engine) planLocked(now time.Time) ([]string, time.Duration) {
 	type cand struct {
 		key  string
 		base time.Duration
+		// slow is set when no pane can receive (LIFE-08): base is then
+		// maxI and the due time ignores the quiet ramp.
+		slow bool
 	}
 	var cands []cand
 	var bases []time.Duration
@@ -103,7 +106,11 @@ func (e *Engine) planLocked(now time.Time) ([]string, time.Duration) {
 			quiet = rec.LastPollAt.Sub(rec.RateAnchor)
 		}
 		base := BaseInterval(quiet, minI, maxI)
-		cands = append(cands, cand{k, base})
+		slow := e.undeliverableLocked(k, now)
+		if slow {
+			base = maxI // LIFE-08, D-06
+		}
+		cands = append(cands, cand{k, base, slow})
 		bases = append(bases, base)
 	}
 	e.stretch = e.budget.Stretch(now, e.budget.ProjectedPerHour(bases))
@@ -117,7 +124,13 @@ func (e *Engine) planLocked(now time.Time) ([]string, time.Duration) {
 		rec := e.state.PRs[c.key]
 		j := jitterFor(c.key)
 		d := duePR{key: c.key, interval: Effective(c.base, e.stretch, j, maxS)}
-		if next := NextDue(rec.LastPollAt, rec.RateAnchor, minI, maxI, maxS, e.stretch, j); !next.IsZero() {
+		var next time.Time
+		if c.slow {
+			next = NextDueBase(rec.LastPollAt, c.base, maxS, e.stretch, j)
+		} else {
+			next = NextDue(rec.LastPollAt, rec.RateAnchor, minI, maxI, maxS, e.stretch, j)
+		}
+		if !next.IsZero() {
 			d.due = next
 		} else {
 			d.due = now

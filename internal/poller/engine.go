@@ -116,6 +116,10 @@ type Cancellation struct {
 // maxCancellations caps the in-memory cancellation ring (T-03-14).
 const maxCancellations = 50
 
+// UndeliverableAfter is D-16: every subscribed pane unable to receive for
+// this long means the PR is polled at the slowest rate (LIFE-08, D-06).
+const UndeliverableAfter = 30 * time.Minute
+
 // PollResult is the outcome for one PR of a poll.
 type PollResult struct {
 	Ref model.PRRef
@@ -216,6 +220,9 @@ type Engine struct {
 	quarAt      time.Time
 	// cancels is the recent-cancellations ring, newest last (D-17).
 	cancels []Cancellation
+	// reach maps a pane that cannot receive to when it stopped being able
+	// to (LIFE-08). In memory only; a missing entry means receivable.
+	reach map[PaneRef]time.Time
 	// running makes a second concurrent Run fail instead of racing.
 	running atomic.Bool
 }
@@ -245,6 +252,7 @@ func New(o Options) (*Engine, error) {
 		stretch:     1,
 		wake:        make(chan struct{}, 1),
 		pendingWake: make(chan struct{}, 1),
+		reach:       map[PaneRef]time.Time{},
 		onCommit:    o.OnCommit,
 		now:         o.Now,
 	}
@@ -637,6 +645,44 @@ func (e *Engine) panesLocked(key string) []PaneRef {
 	return out
 }
 
+// SetPaneReachability records whether a pane can receive deliveries. A
+// non-zero cannotSince marks it unable to receive since then; the zero time
+// marks it receivable. Working counts as receivable; blocked, no agent,
+// unknown status and herdr unreachable do not. The caller keeps the earliest
+// since across consecutive cannot-receive states. When a pane becomes
+// receivable again the scheduler is woken, so the normal cadence resumes on
+// its next loop (LIFE-08).
+func (e *Engine) SetPaneReachability(p PaneRef, cannotSince time.Time) {
+	e.mu.Lock()
+	_, was := e.reach[p]
+	if cannotSince.IsZero() {
+		delete(e.reach, p)
+	} else {
+		e.reach[p] = cannotSince
+	}
+	e.mu.Unlock()
+	if was && cannotSince.IsZero() {
+		e.poke()
+	}
+}
+
+// undeliverableLocked reports whether every pane subscribed to key has been
+// unable to receive for at least UndeliverableAfter. A PR with no panes, or
+// with one pane without an entry, is deliverable. Callers hold e.mu.
+func (e *Engine) undeliverableLocked(key string, now time.Time) bool {
+	panes := e.panesLocked(key)
+	if len(panes) == 0 {
+		return false
+	}
+	for _, p := range panes {
+		since, ok := e.reach[p]
+		if !ok || now.Sub(since) < UndeliverableAfter {
+			return false
+		}
+	}
+	return true
+}
+
 // CoSubscribers lists every pane subscribed to ref.
 func (e *Engine) CoSubscribers(ref model.PRRef) []PaneRef {
 	e.mu.Lock()
@@ -658,6 +704,15 @@ func (e *Engine) scheduleLocked(rec *store.PRRecord, now time.Time) (time.Durati
 		return 0, time.Time{}
 	}
 	p := e.cfg.Poll
+	if e.undeliverableLocked(store.PRKey(rec.Ref), now) {
+		// LIFE-08: no pane can receive, so poll at the slowest rate.
+		base := p.MaxInterval.Duration
+		interval := Effective(base, e.stretch, 0, p.MaxStretchedInterval.Duration)
+		if rec.LastPollAt.IsZero() {
+			return interval, now
+		}
+		return interval, NextDueBase(rec.LastPollAt, base, p.MaxStretchedInterval.Duration, e.stretch, 0)
+	}
 	base := BaseInterval(now.Sub(rec.RateAnchor), p.MinInterval.Duration, p.MaxInterval.Duration)
 	interval := Effective(base, e.stretch, 0, p.MaxStretchedInterval.Duration)
 	if rec.LastPollAt.IsZero() {
