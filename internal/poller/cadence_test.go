@@ -135,3 +135,19 @@ func TestCoalesceWindow(t *testing.T) {
 		}
 	}
 }
+
+func TestNextDueBase(t *testing.T) {
+	if got := NextDueBase(time.Time{}, tMax, time.Hour, 1, 0); !got.IsZero() {
+		t.Fatalf("zero lastPoll: got %v, want zero (due now)", got)
+	}
+	last := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	if got, want := NextDueBase(last, tMax, time.Hour, 1, 0), last.Add(16*time.Minute); !got.Equal(want) {
+		t.Fatalf("NextDueBase = %v, want %v", got, want)
+	}
+	for _, c := range []struct{ stretch, jit float64 }{{1, -0.1}, {3, 0}, {10, -0.05}} {
+		got := NextDueBase(last, tMax, time.Hour, c.stretch, c.jit)
+		if want := last.Add(Effective(tMax, c.stretch, c.jit, time.Hour)); !got.Equal(want) {
+			t.Errorf("NextDueBase(stretch %v, jitter %v) = %v, want %v", c.stretch, c.jit, got, want)
+		}
+	}
+}

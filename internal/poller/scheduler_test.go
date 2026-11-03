@@ -628,3 +628,146 @@ func TestStatusQuarantine(t *testing.T) {
 		}
 	})
 }
+
+// waitPoll advances in 30s steps until PR A is polled again (at most limit)
+// and returns that poll's time.
+func (s *sched) waitPoll(limit time.Duration) time.Time {
+	s.t.Helper()
+	key := store.PRKey(prA)
+	n := len(s.f.pollTimes(key))
+	for waited := time.Duration(0); waited < limit; waited += 30 * time.Second {
+		s.advance(30 * time.Second)
+		if pt := s.f.pollTimes(key); len(pt) > n {
+			return pt[len(pt)-1]
+		}
+	}
+	s.t.Fatalf("no poll within %v", limit)
+	return time.Time{}
+}
+
+// TestUndeliverableCadence covers LIFE-08 (D-06, D-16): once every pane of a
+// PR has been unable to receive for 30 minutes, the PR is polled at the
+// slowest rate, and it returns to its normal cadence as soon as one pane can
+// receive again.
+func TestUndeliverableCadence(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		s := newSched(t, schedOpt{})
+		s.f.addPR(prA)
+		pane := PaneRef{HerdrSocket: sock, PaneID: "w1:p1"}
+		s.sub(prA, pane.PaneID)
+		s.start()
+		s.advance(time.Minute)
+		since := time.Now()
+		s.e.SetPaneReachability(pane, since)
+		threshold := since.Add(UndeliverableAfter)
+
+		s.advance(29 * time.Minute)
+		key := store.PRKey(prA)
+		var before []time.Time
+		for _, x := range s.f.pollTimes(key) {
+			if !x.Before(since) {
+				before = append(before, x)
+			}
+		}
+		for i, g := range gaps(before) {
+			if g > 2*time.Minute {
+				t.Errorf("gap %d before the threshold = %v, want the normal <= 2m", i, g)
+			}
+		}
+
+		s.advance(40 * time.Minute)
+		if iv, _ := s.e.Schedule(prA); iv != 16*time.Minute {
+			t.Errorf("Schedule interval while undeliverable = %v, want 16m", iv)
+		}
+		pt := s.f.pollTimes(key)
+		var last time.Time
+		for _, x := range pt {
+			if x.Before(threshold) {
+				last = x
+			}
+		}
+		late := after(pt, threshold)
+		if len(late) < 2 {
+			t.Fatalf("polls after the threshold %v, want >= 2", late)
+		}
+		inRange(t, "gap across the threshold", late[0].Sub(last), 14*time.Minute+24*time.Second, 16*time.Minute)
+		for i, g := range gaps(late) {
+			inRange(t, "slow gap "+strconv.Itoa(i), g, 14*time.Minute+24*time.Second, 16*time.Minute)
+		}
+
+		// Recovery: wait for a slow poll, then make the pane receivable a
+		// minute later. The next poll follows the normal curve (at most 6m
+		// for a PR quiet under 2h), not 16m after the last.
+		l := s.waitPoll(17 * time.Minute)
+		s.advance(time.Minute)
+		recovered := time.Now()
+		s.e.SetPaneReachability(pane, time.Time{})
+		synctest.Wait()
+		next := s.waitPoll(16 * time.Minute)
+		if next.After(l.Add(6 * time.Minute)) {
+			t.Errorf("first poll after recovery at +%v from the last poll (recovered at +%v), want <= 6m",
+				next.Sub(l), recovered.Sub(l))
+		}
+		if iv, _ := s.e.Schedule(prA); iv >= 16*time.Minute {
+			t.Errorf("Schedule interval after recovery = %v", iv)
+		}
+		s.stop()
+	})
+}
+
+// TestUndeliverableNeedsEveryPane: one receivable pane keeps the normal
+// cadence, a pane without an entry counts as receivable, and an entry for a
+// pane not subscribed to the PR has no effect.
+func TestUndeliverableNeedsEveryPane(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		s := newSched(t, schedOpt{})
+		s.f.addPR(prA)
+		s.sub(prA, "w1:p1")
+		s.sub(prA, "w1:p2")
+		s.e.SetPaneReachability(PaneRef{HerdrSocket: sock, PaneID: "w1:p1"}, time.Now())
+		s.e.SetPaneReachability(PaneRef{HerdrSocket: sock, PaneID: "w9:p9"}, time.Now())
+		s.start()
+		s.advance(time.Hour)
+		s.stop()
+		for i, g := range gaps(s.f.pollTimes(store.PRKey(prA))) {
+			if g > 4*time.Minute {
+				t.Errorf("gap %d = %v, want the normal cadence (<= 4m in the first hour)", i, g)
+			}
+		}
+		if iv, _ := s.e.Schedule(prA); iv >= 16*time.Minute {
+			t.Errorf("Schedule interval = %v, want the normal cadence", iv)
+		}
+	})
+}
+
+func TestSetPaneReachability(t *testing.T) {
+	h := newHarness(t)
+	h.sub(prA, "w1:p1")
+	h.pollNow(prA)
+	fired(h.e.Wake())
+	pane := PaneRef{HerdrSocket: sock, PaneID: "w1:p1"}
+	now := h.clk.Now()
+
+	h.e.SetPaneReachability(pane, now.Add(-29*time.Minute))
+	if iv, _ := h.e.Schedule(prA); iv != time.Minute {
+		t.Errorf("29m unreachable: interval %v, want 1m", iv)
+	}
+	h.e.SetPaneReachability(pane, now.Add(-UndeliverableAfter))
+	if iv, next := h.e.Schedule(prA); iv != 16*time.Minute || !next.Equal(now.Add(16*time.Minute)) {
+		t.Errorf("30m unreachable: Schedule = %v %v, want 16m at %v", iv, next, now.Add(16*time.Minute))
+	}
+	if fired(h.e.Wake()) {
+		t.Error("marking a pane unreachable poked the scheduler")
+	}
+	h.e.SetPaneReachability(pane, time.Time{})
+	if !fired(h.e.Wake()) {
+		t.Error("recovery did not poke the scheduler")
+	}
+	if iv, _ := h.e.Schedule(prA); iv != time.Minute {
+		t.Errorf("after recovery: interval %v, want 1m", iv)
+	}
+	h.e.SetPaneReachability(pane, time.Time{})
+	if fired(h.e.Wake()) {
+		t.Error("receivable -> receivable poked the scheduler")
+	}
+}
