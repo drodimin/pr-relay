@@ -4,8 +4,8 @@ milestone: v1.0
 milestone_name: milestone
 status: executing
 stopped_at: Phase 3 context gathered
-last_updated: "2026-11-03T03:06:18.991Z"
-last_activity: 2026-11-03 -- Phase 3 planning complete
+last_updated: "2026-11-03T03:10:12.271Z"
+last_activity: 2026-11-03 -- Phase 03 execution started
 progress:
   total_phases: 5
   completed_phases: 2
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-10-31)
 
 **Core value:** An agent runs `pr-relay sub <PR link>` once, returns immediately, and later receives a relevant PR update in its pane without spending tokens on polling. One poller serves every agent on the machine.
-**Current focus:** Phase 3 — herdr client & delivery
+**Current focus:** Phase 03 — herdr-client-delivery
 
 ## Current Position
 
-Phase: 3
-Plan: Not started
-Status: Ready to execute
-Last activity: 2026-11-03 -- Phase 3 planning complete
+Phase: 03 (herdr-client-delivery) — EXECUTING
+Plan: 1 of 8
+Status: Executing Phase 03
+Last activity: 2026-11-03 -- Phase 03 execution started
 
 Progress: [██████████] 100%
 
