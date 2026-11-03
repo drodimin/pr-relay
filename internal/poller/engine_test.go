@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -832,5 +833,35 @@ func TestSchedule(t *testing.T) {
 	polled := h.clk.Now()
 	if d, at := h.e.Schedule(prA); d != time.Minute || !at.Equal(polled.Add(time.Minute)) {
 		t.Errorf("after poll Schedule = %v %v", d, at)
+	}
+}
+
+// TestOnCommitMayPoll covers review WR-03: OnCommit runs after pollMu is
+// released, so a callback that polls again does not deadlock.
+func TestOnCommitMayPoll(t *testing.T) {
+	var h *harness
+	var fired atomic.Bool
+	inner := make(chan error, 1)
+	h = newHarness(t, func(o *Options) {
+		o.OnCommit = func(CommitReport) {
+			if fired.CompareAndSwap(false, true) {
+				_, err := h.e.PollNow(context.Background(), prA)
+				inner <- err
+			}
+		}
+	})
+	h.sub(prA, "w1:p1")
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		_, _ = h.e.PollNow(context.Background(), prA)
+	}()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("PollNow from OnCommit deadlocked")
+	}
+	if err := <-inner; err != nil {
+		t.Errorf("PollNow inside OnCommit: %v", err)
 	}
 }

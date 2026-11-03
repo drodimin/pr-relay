@@ -38,7 +38,9 @@ type Options struct {
 	Config  config.Config
 	Logger  *slog.Logger
 	// OnCommit, when set, is called after every committed poll, outside
-	// the engine's locks.
+	// the engine's locks (pollMu included), so it may call PollNow. Calls
+	// from concurrent polls are not serialized: the callback must do its
+	// own locking.
 	OnCommit func(CommitReport)
 	// Now is the clock. Tests inject a fake one.
 	Now func() time.Time
@@ -594,11 +596,24 @@ func errClass(err error) string {
 // through diff, re-fetches gapped PRs with the wide window and commits the
 // result in one Save. Polls run one at a time. keys must fit one batch
 // (ghquery.MaxBatch); unknown keys are skipped.
+//
+// OnCommit runs after pollMu is released (review WR-03), so a callback may
+// call PollNow without deadlocking and does not stall other polls.
 func (e *Engine) pollRefs(ctx context.Context, keys []string, forced bool) ([]PollResult, error) {
 	e.pollMu.Lock()
-	defer e.pollMu.Unlock()
+	results, report, err := e.pollRefsLocked(ctx, keys, forced)
+	e.pollMu.Unlock()
+	if err == nil && report != nil && e.onCommit != nil {
+		e.onCommit(*report)
+	}
+	return results, err
+}
+
+// pollRefsLocked is pollRefs without the callback. The caller holds pollMu.
+// The report is nil when nothing was committed.
+func (e *Engine) pollRefsLocked(ctx context.Context, keys []string, forced bool) ([]PollResult, *CommitReport, error) {
 	if len(keys) > ghquery.MaxBatch {
-		return nil, fmt.Errorf("poller: %d pull requests exceed one batch of %d", len(keys), ghquery.MaxBatch)
+		return nil, nil, fmt.Errorf("poller: %d pull requests exceed one batch of %d", len(keys), ghquery.MaxBatch)
 	}
 
 	e.mu.Lock()
@@ -617,11 +632,11 @@ func (e *Engine) pollRefs(ctx context.Context, keys []string, forced bool) ([]Po
 	}
 	if len(targets) == 0 {
 		e.mu.Unlock()
-		return nil, nil
+		return nil, nil, nil
 	}
 	if w := e.budget.Gate(now, forced); w > 0 {
 		e.mu.Unlock()
-		return nil, &RateLimitedError{Until: now.Add(w)}
+		return nil, nil, &RateLimitedError{Until: now.Add(w)}
 	}
 	e.mu.Unlock()
 
@@ -633,7 +648,7 @@ func (e *Engine) pollRefs(ctx context.Context, keys []string, forced bool) ([]Po
 	res, err := e.fetch.Batch(ctx, refs, ghquery.NormalWindow)
 	if err != nil {
 		e.batchFailed(ctx, targets, now, err)
-		return nil, err
+		return nil, nil, err
 	}
 	cost := res.RateLimit.Cost
 	e.mu.Lock()
@@ -662,7 +677,7 @@ func (e *Engine) pollRefs(ctx context.Context, keys []string, forced bool) ([]Po
 		wres, werr := e.fetch.Batch(ctx, wref, ghquery.WideWindow)
 		if werr != nil {
 			if ctx.Err() != nil {
-				return nil, werr
+				return nil, nil, werr
 			}
 			// A rate limit on the re-fetch must back off exactly like one
 			// on the first batch (D-07), or the next chunk hits it again.
@@ -704,7 +719,7 @@ func (e *Engine) pollRefs(ctx context.Context, keys []string, forced bool) ([]Po
 	results, report, err := e.commit(steps, res.Viewer, now, forced, cost)
 	if err != nil {
 		e.log.Error("poll commit failed", "prs", len(targets), "error", err)
-		return nil, err
+		return nil, nil, err
 	}
 	report.Remaining, report.Limit, report.ResetAt = res.RateLimit.Remaining, res.RateLimit.Limit, res.ResetAt
 
@@ -722,10 +737,7 @@ func (e *Engine) pollRefs(ctx context.Context, keys []string, forced bool) ([]Po
 		"batch_size", batchSize,
 		"duration_ms", e.now().Sub(start).Milliseconds(),
 	)
-	if e.onCommit != nil {
-		e.onCommit(report)
-	}
-	return results, nil
+	return results, &report, nil
 }
 
 // itemFor returns items[i] when it is the result for ref.
