@@ -22,12 +22,18 @@ type sinkLine struct {
 // sink is the dev harness's idempotent delivery target, used by the crash
 // test (D-22). Each event is appended as one JSON line and fsynced before the
 // engine is acked, so a kill between the two leaves the event both in the
-// sink and pending. The next run reads the highest seq already in the file,
-// acks everything up to it and skips any event at or below it: an event is
-// written exactly once whatever the kill point.
+// sink and pending. The next run reads the highest seq already in the file
+// for each PR, acks that PR's subscription up to it and skips any of its
+// events at or below it: an event is written exactly once whatever the kill
+// point.
+//
+// The high-water mark is kept per PR, not globally. Seqs are global but each
+// subscription's queue is drained separately and in no particular seq order,
+// so a single global mark would skip (and the startup ack would discard)
+// lower-seq events belonging to another PR.
 type sink struct {
 	f      *os.File
-	maxSeq uint64
+	maxSeq map[string]uint64 // keyed by store.PRKey
 }
 
 // openSink opens (creating, mode 0600) the sink at path and finds the highest
@@ -38,7 +44,7 @@ func openSink(path string) (*sink, error) {
 	if err != nil {
 		return nil, fmt.Errorf("open sink: %w", err)
 	}
-	s := &sink{f: f}
+	s := &sink{f: f, maxSeq: map[string]uint64{}}
 	if err := s.scan(); err != nil {
 		_ = f.Close()
 		return nil, err
@@ -76,7 +82,7 @@ func (s *sink) scan() error {
 		if err := json.Unmarshal(line, &l); err != nil {
 			return fmt.Errorf("sink: malformed line: %w", err)
 		}
-		s.maxSeq = max(s.maxSeq, l.Seq)
+		s.maxSeq[l.PR] = max(s.maxSeq[l.PR], l.Seq)
 	}
 	if err := sc.Err(); err != nil {
 		return fmt.Errorf("sink: scan: %w", err)
@@ -84,13 +90,17 @@ func (s *sink) scan() error {
 	return nil
 }
 
-// write appends every event with a seq above the sink's high-water mark, in
-// one write, and fsyncs before returning.
+// highWater returns the highest seq already in the sink for prKey.
+func (s *sink) highWater(prKey string) uint64 { return s.maxSeq[prKey] }
+
+// write appends every event with a seq above prKey's high-water mark, in one
+// write, and fsyncs before returning.
 func (s *sink) write(prKey string, evs []store.PendingEvent) error {
 	var buf bytes.Buffer
-	top := s.maxSeq
+	hw := s.maxSeq[prKey]
+	top := hw
 	for _, ev := range evs {
-		if ev.Seq <= s.maxSeq {
+		if ev.Seq <= hw {
 			continue
 		}
 		b, err := json.Marshal(sinkLine{Seq: ev.Seq, Key: ev.Event.Key, Type: string(ev.Event.Type), PR: prKey})
@@ -110,7 +120,7 @@ func (s *sink) write(prKey string, evs []store.PendingEvent) error {
 	if err := s.f.Sync(); err != nil {
 		return fmt.Errorf("sink: sync: %w", err)
 	}
-	s.maxSeq = top
+	s.maxSeq[prKey] = top
 	return nil
 }
 

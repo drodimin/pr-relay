@@ -216,10 +216,16 @@ func runDevWatch(ctx context.Context, stdout, stderr io.Writer, args []string, s
 	}
 
 	// Events written to the sink by a killed run but never acked are
-	// cleared here, so they are not written or printed twice.
-	if sk != nil && sk.maxSeq > 0 {
+	// cleared here, so they are not written or printed twice. Each
+	// subscription is acked only up to its own PR's high-water mark: acking
+	// with another PR's mark would discard events never written.
+	if sk != nil {
 		for _, s := range pr.subs {
-			if err := eng.Ack(s.id, sk.maxSeq); err != nil {
+			hw := sk.highWater(s.key)
+			if hw == 0 {
+				continue
+			}
+			if err := eng.Ack(s.id, hw); err != nil {
 				return fmt.Errorf("ack %s: %w", s.ref, err)
 			}
 		}
