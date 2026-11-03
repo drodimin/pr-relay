@@ -14,6 +14,10 @@
 //     cannot make the poller spin or stall. min_interval must be at least
 //     MinMinInterval (10s); only the test-only EnvFastPoll lowers it. pending_cap (default 200) bounds
 //     each subscription's undelivered queue.
+//   - D-09 delivery quiet period: [delivery] quiet_period (default 10s) is how
+//     long a pane must be quiet before an update is typed into it, so a push
+//     never collides with someone typing. It must be in [1s, 5m]; only the
+//     test-only EnvFastPoll lowers the 1s floor.
 package config
 
 import (
@@ -35,6 +39,14 @@ const (
 	DefaultMaxStretchedInterval = 60 * time.Minute // slowest per-PR interval under a low budget
 	DefaultBatchSize            = 20               // PRs per batched GraphQL query
 	DefaultPendingCap           = 200              // undelivered events kept per subscription
+	DefaultQuietPeriod          = 10 * time.Second // D-09 typing-collision quiet period
+)
+
+// Bounds for quiet_period (D-09). A zero value would turn the delivery gate
+// into a hot loop; a huge one would stall delivery indefinitely.
+const (
+	MinQuietPeriod = time.Second
+	MaxQuietPeriod = 5 * time.Minute
 )
 
 // MaxBatchSize is the largest accepted batch_size.
@@ -59,6 +71,14 @@ func minIntervalFloor() time.Duration {
 		return fastPollFloor
 	}
 	return MinMinInterval
+}
+
+// quietPeriodFloor returns the smallest quiet_period Validate accepts.
+func quietPeriodFloor() time.Duration {
+	if os.Getenv(EnvFastPoll) == "1" {
+		return fastPollFloor
+	}
+	return MinQuietPeriod
 }
 
 // Duration is a time.Duration that decodes from a Go duration string.
@@ -94,10 +114,16 @@ type SubsConfig struct {
 	PendingCap int `toml:"pending_cap"`
 }
 
+// DeliveryConfig is the [delivery] table.
+type DeliveryConfig struct {
+	QuietPeriod Duration `toml:"quiet_period"`
+}
+
 // Config is the whole config.toml.
 type Config struct {
-	Poll          PollConfig `toml:"poll"`
-	Subscriptions SubsConfig `toml:"subscriptions"`
+	Poll          PollConfig     `toml:"poll"`
+	Subscriptions SubsConfig     `toml:"subscriptions"`
+	Delivery      DeliveryConfig `toml:"delivery"`
 }
 
 // Defaults returns a Config with every knob at its default.
@@ -112,6 +138,7 @@ func Defaults() Config {
 			BatchSize:            DefaultBatchSize,
 		},
 		Subscriptions: SubsConfig{PendingCap: DefaultPendingCap},
+		Delivery:      DeliveryConfig{QuietPeriod: Duration{DefaultQuietPeriod}},
 	}
 }
 
@@ -139,11 +166,13 @@ func Load(path string) (Config, []string, error) {
 	return cfg, warns, nil
 }
 
-// Validate rejects values that would make the poller spin, stall or
-// overspend.
+// Validate rejects values that would make the poller or the delivery gate
+// spin, stall or overspend.
 func (c Config) Validate() error {
 	p := c.Poll
 	floor := minIntervalFloor()
+	qp := c.Delivery.QuietPeriod.Duration
+	qpFloor := quietPeriodFloor()
 	switch {
 	case p.MinInterval.Duration < floor:
 		return fmt.Errorf("config: min_interval: must be at least %s, got %s", floor, p.MinInterval.Duration)
@@ -159,6 +188,10 @@ func (c Config) Validate() error {
 		return fmt.Errorf("config: batch_size: must be 1..%d, got %d", MaxBatchSize, p.BatchSize)
 	case c.Subscriptions.PendingCap < 1:
 		return fmt.Errorf("config: pending_cap: must be at least 1, got %d", c.Subscriptions.PendingCap)
+	case qp < qpFloor:
+		return fmt.Errorf("config: quiet_period: must be at least %s, got %s", qpFloor, qp)
+	case qp > MaxQuietPeriod:
+		return fmt.Errorf("config: quiet_period: must be at most %s, got %s", MaxQuietPeriod, qp)
 	}
 	return nil
 }
