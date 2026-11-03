@@ -24,8 +24,9 @@ type fakeEngine struct {
 	reachLog []fakeReach
 	failAck  error
 	pending  chan struct{}
-	// onPending, when set, runs (without mu) at the start of Pending.
-	onPending func(subID string)
+	// beforeAck, when set, runs (without mu) at the start of AckMany, i.e.
+	// after the worker took its drains and sent the prompt.
+	beforeAck func()
 }
 
 type fakeCancel struct {
@@ -153,12 +154,6 @@ func (f *fakeEngine) List() []store.Subscription {
 
 func (f *fakeEngine) Pending(subID string) (poller.Drain, error) {
 	f.mu.Lock()
-	hook := f.onPending
-	f.mu.Unlock()
-	if hook != nil {
-		hook(subID)
-	}
-	f.mu.Lock()
 	defer f.mu.Unlock()
 	s := f.subs[subID]
 	if s == nil {
@@ -180,6 +175,13 @@ func (f *fakeEngine) PRView(key string) (poller.PRView, bool) {
 }
 
 func (f *fakeEngine) AckMany(acks map[string]uint64) error {
+	f.mu.Lock()
+	hook := f.beforeAck
+	f.beforeAck = nil
+	f.mu.Unlock()
+	if hook != nil {
+		hook()
+	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.acks = append(f.acks, maps.Clone(acks))
