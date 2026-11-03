@@ -118,13 +118,27 @@ Plans:
 **Plans:** 8 plans
 
 Plans:
+**Wave 1**
+
 - [ ] 03-01-PLAN.md — Store schema v2 (Subscription.AgentKind, v1->v2 migration) and [delivery] quiet_period config
 - [ ] 03-02-PLAN.md — internal/herdr one-shot NDJSON client, typed errors, socket ownership guard, herdrtest fake server
 - [ ] 03-03-PLAN.md — render.Each/DroppedLine/HeldLine and pure internal/compose (supersede rules, coalescing, 12 KiB flood guard, acks)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
 - [ ] 03-04-PLAN.md — Engine hooks: PendingWake, PRView, AckMany, Cancel + ring, SetPaneReachability with LIFE-08 slowest-rate override
 - [ ] 03-05-PLAN.md — herdr events Stream and per-socket Endpoint with reconnect, backoff, events_lost and Reconnected signal
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
 - [ ] 03-06-PLAN.md — deliver per-pane worker: idle/done + quiet-period gate, D-13 identity, prompt, ack, cancel, reachability
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
 - [ ] 03-07-PLAN.md — deliver.Manager: endpoint per socket, worker lifecycle, pane closed/moved cancels, restart reconcile, real-engine integration
+
+**Wave 5** *(blocked on Wave 4 completion)*
+
 - [ ] 03-08-PLAN.md — `pr-relay dev deliver` scratch harness, opt-in live test, human verification of success criteria
 
 ### Phase 4: Daemon, Control Protocol & CLI
