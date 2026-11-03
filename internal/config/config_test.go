@@ -30,6 +30,9 @@ func TestDefaults(t *testing.T) {
 	if d.Poll.BatchSize != 20 || d.Subscriptions.PendingCap != 200 {
 		t.Fatalf("size defaults wrong: %+v", d)
 	}
+	if d.Delivery.QuietPeriod.Duration != 10*time.Second {
+		t.Fatalf("quiet_period default = %v, want 10s", d.Delivery.QuietPeriod)
+	}
 	if err := d.Validate(); err != nil {
 		t.Fatalf("defaults invalid: %v", err)
 	}
@@ -79,6 +82,9 @@ batch_size = 5
 
 [subscriptions]
 pending_cap = 7
+
+[delivery]
+quiet_period = "30s"
 `)
 	cfg, _, err := Load(p)
 	if err != nil {
@@ -94,6 +100,7 @@ pending_cap = 7
 			BatchSize:            5,
 		},
 		Subscriptions: SubsConfig{PendingCap: 7},
+		Delivery:      DeliveryConfig{QuietPeriod: Duration{30 * time.Second}},
 	}
 	if !reflect.DeepEqual(cfg, want) {
 		t.Fatalf("cfg = %+v, want %+v", cfg, want)
@@ -130,6 +137,11 @@ func TestLoadInvalid(t *testing.T) {
 		{"batch too big", "[poll]\nbatch_size = 21\n", "batch_size"},
 		{"pending zero", "[subscriptions]\npending_cap = 0\n", "pending_cap"},
 		{"bad duration", "[poll]\nmin_interval = \"soon\"\n", "min_interval"},
+		{"quiet zero", "[delivery]\nquiet_period = \"0s\"\n", "quiet_period"},
+		{"quiet negative", "[delivery]\nquiet_period = \"-1s\"\n", "quiet_period"},
+		{"quiet too short", "[delivery]\nquiet_period = \"500ms\"\n", "quiet_period"},
+		{"quiet too long", "[delivery]\nquiet_period = \"6m\"\n", "quiet_period"},
+		{"quiet bad duration", "[delivery]\nquiet_period = \"soon\"\n", "quiet_period"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -148,6 +160,12 @@ func TestLoadBoundsInclusive(t *testing.T) {
 	body := "[poll]\nbudget_pct = 1.0\nlow_budget_threshold = 0.0\nbatch_size = 1\n[subscriptions]\npending_cap = 1\n"
 	if _, _, err := Load(writeConfig(t, body)); err != nil {
 		t.Fatalf("Load: %v", err)
+	}
+	t.Setenv(EnvFastPoll, "")
+	for _, v := range []string{"1s", "5m"} {
+		if _, _, err := Load(writeConfig(t, "[delivery]\nquiet_period = \""+v+"\"\n")); err != nil {
+			t.Fatalf("quiet_period %s: %v", v, err)
+		}
 	}
 }
 
@@ -184,5 +202,48 @@ func TestMinIntervalFloor(t *testing.T) {
 	p = writeConfig(t, "[poll]\nmin_interval = \"100ms\"\nmax_interval = \"200ms\"\n")
 	if _, _, err := Load(p); err != nil {
 		t.Errorf("min_interval 100ms with %s=1: %v", EnvFastPoll, err)
+	}
+}
+
+// TestQuietPeriod covers D-09: the delivery quiet period defaults to 10s, is
+// bounded to [1s, 5m], and only EnvFastPoll lowers the floor.
+func TestQuietPeriod(t *testing.T) {
+	t.Setenv(EnvFastPoll, "")
+	cfg, _, err := Load(writeConfig(t, "[poll]\nbatch_size = 3\n"))
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.Delivery.QuietPeriod.Duration != DefaultQuietPeriod {
+		t.Fatalf("quiet_period without [delivery] = %v, want %v", cfg.Delivery.QuietPeriod, DefaultQuietPeriod)
+	}
+
+	cfg, warns, err := Load(writeConfig(t, "[delivery]\nquiet_period = \"30s\"\n"))
+	if err != nil || len(warns) != 0 {
+		t.Fatalf("Load 30s: %v, warnings %v", err, warns)
+	}
+	if cfg.Delivery.QuietPeriod.Duration != 30*time.Second {
+		t.Fatalf("quiet_period = %v, want 30s", cfg.Delivery.QuietPeriod)
+	}
+
+	_, _, err = Load(writeConfig(t, "[delivery]\nquiet_period = \"500ms\"\n"))
+	if err == nil || !strings.Contains(err.Error(), "quiet_period") || !strings.Contains(err.Error(), "at least 1s") {
+		t.Fatalf("500ms: err = %v, want quiet_period at least 1s", err)
+	}
+	_, _, err = Load(writeConfig(t, "[delivery]\nquiet_period = \"6m\"\n"))
+	if err == nil || !strings.Contains(err.Error(), "quiet_period") || !strings.Contains(err.Error(), "at most 5m") {
+		t.Fatalf("6m: err = %v, want quiet_period at most 5m", err)
+	}
+
+	t.Setenv(EnvFastPoll, "1")
+	cfg, _, err = Load(writeConfig(t, "[delivery]\nquiet_period = \"5ms\"\n"))
+	if err != nil {
+		t.Fatalf("5ms with %s=1: %v", EnvFastPoll, err)
+	}
+	if cfg.Delivery.QuietPeriod.Duration != 5*time.Millisecond {
+		t.Fatalf("quiet_period = %v, want 5ms", cfg.Delivery.QuietPeriod)
+	}
+	_, _, err = Load(writeConfig(t, "[delivery]\nquiet_period = \"6m\"\n"))
+	if err == nil || !strings.Contains(err.Error(), "at most 5m") {
+		t.Fatalf("6m with %s=1: err = %v, want the 5m maximum to still apply", EnvFastPoll, err)
 	}
 }
