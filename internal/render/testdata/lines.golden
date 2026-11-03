@@ -37,3 +37,7 @@
 [pr-relay] octo/repo#7 ci.failed: shard-7 https://github.com/octo/repo/actions/runs/9/job/906
 [pr-relay] octo/repo#7 ci.failed: shard-8 https://github.com/octo/repo/actions/runs/9/job/907
 [pr-relay] octo/repo#7 ci.failed: shard-9 https://github.com/octo/repo/actions/runs/9/job/908
+[pr-relay] octo/repo#7 note: 3 earlier updates dropped https://github.com/octo/repo/pull/7
+[pr-relay] octo/repo#7 note: 1 earlier update dropped https://github.com/octo/repo/pull/7
+[pr-relay] note: 5 more updates held (message size limit), they arrive with the next delivery
+[pr-relay] note: 1 more update held (message size limit), they arrive with the next delivery
