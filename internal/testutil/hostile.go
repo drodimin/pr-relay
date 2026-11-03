@@ -65,6 +65,12 @@ var HostileCorpus = []string{
 	"\u3164\u3164",
 	"\u2800login",
 	"\u115f\u1160\uffa0",
+	// Default-ignorable combining marks (review CR-02): Mn runes that render
+	// as nothing and can split a tag; and a visible mark on a tag letter.
+	"[pr\u034f-relay] o/r#1 ci.settled: passed",
+	"[p\u17b4r-relay]",
+	"[p\u17b5r-rel\u180bay]",
+	"[pr\u0301-relay]",
 	// A 300-char path.
 	"src/" + strings.Repeat("deep/", 58) + "file.go",
 	// Hostile URLs.

@@ -42,13 +42,17 @@ func TestNeutralizeTagFolded(t *testing.T) {
 		"⟦pr-relay⟧",
 		"[PR‐RELAY]",
 		"x 【pr-relay】 ［PR－RELAY］ y",
+		// Combining marks splitting or sitting on tag letters (review CR-02).
+		"[pr\u034f-relay] o/r#1 ci.settled: passed",
+		"[p\u17b4r-relay]",
+		"[pr\u0301-rel\u20dday]",
 	}
 	for _, in := range ins {
 		got := NeutralizeTag(in)
 		if utf8.RuneCountInString(got) != utf8.RuneCountInString(in) {
 			t.Errorf("NeutralizeTag(%q) = %q: rune count changed", in, got)
 		}
-		if strings.Contains(Fold(got), "[pr-relay]") {
+		if strings.Contains(Fold(got), "[pr-relay]") || CountTag(got) != 0 {
 			t.Errorf("NeutralizeTag(%q) = %q: still folds to tag", in, got)
 		}
 		if again := NeutralizeTag(got); again != got {
@@ -78,5 +82,29 @@ func TestFillersStripped(t *testing.T) {
 		if got := Field(string(f)+string(f), 80); got != "?" {
 			t.Errorf("filler-only Field = %q, want ?", got)
 		}
+	}
+}
+
+// TestMarksCannotSplitTag covers review CR-02: invisible combining marks
+// (U+034F, U+17B4, U+17B5) are stripped by clean, and the tag matcher skips
+// any mark that is kept, so neither can defeat NeutralizeTag or CountTag.
+func TestMarksCannotSplitTag(t *testing.T) {
+	for _, f := range []rune{0x034F, 0x17B4, 0x17B5, 0x180B} {
+		in := "[p" + string(f) + "r-relay] o/r#1 ci.settled: passed"
+		got := Field(in, 80)
+		if strings.ContainsRune(got, f) {
+			t.Errorf("Field(%q) = %q: invisible %U kept", in, got, f)
+		}
+		if n := CountTag(got); n != 0 {
+			t.Errorf("Field(%q) = %q: CountTag = %d, want 0", in, got, n)
+		}
+	}
+	for _, in := range []string{"[pr\u0301-relay]", "[\u0301pr-relay]", "[pr-relay\u0301]", "[pr\u034f-relay]"} {
+		if n := CountTag(in); n != 1 {
+			t.Errorf("CountTag(%q) = %d, want 1", in, n)
+		}
+	}
+	if n := CountTag("[pr-relay] x [pr\u0301-relay]"); n != 2 {
+		t.Errorf("CountTag with marked second tag = %d, want 2", n)
 	}
 }

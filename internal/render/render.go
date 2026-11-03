@@ -13,10 +13,11 @@
 // multi-line and large prompts. That layer owns the prompt size, so it owns
 // the ceiling too (D-02, D-03).
 //
-// The tag guard (fits) counts the tag in sanitize.Fold of the whole line, so a
-// lookalike second tag ("［pr-relay］", Cyrillic letters, Unicode brackets)
-// formed anywhere in the line, including across field boundaries, forces the
-// minimal fallback line (CR-02).
+// The tag guard (fits) counts the tag with sanitize.CountTag over the whole
+// line (folded, with combining marks and invisible runes skipped), so a
+// lookalike second tag ("［pr-relay］", Cyrillic letters, Unicode brackets,
+// or one split by marks) formed anywhere in the line, including across field
+// boundaries, forces the minimal fallback line (CR-02).
 package render
 
 import (
@@ -143,9 +144,10 @@ func (r renderer) line(e model.Event) (string, bool) {
 }
 
 // fits reports whether l fits the cap and carries exactly one tag in folded
-// form (the prefix tag at offset 0).
+// form (the prefix tag at offset 0). sanitize.CountTag skips combining marks
+// and invisible runes, so a tag split by them is still counted.
 func fits(l string) bool {
-	return len(l) <= MaxLineBytes && strings.Count(sanitize.Fold(l), tag) == 1
+	return len(l) <= MaxLineBytes && sanitize.CountTag(l) == 1
 }
 
 func (r renderer) checkName(e model.Event) string {

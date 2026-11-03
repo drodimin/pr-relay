@@ -51,7 +51,7 @@ func checkLine(t *testing.T, l string) {
 	if len(l) > MaxLineBytes {
 		t.Errorf("line is %d bytes (> %d): %q", len(l), MaxLineBytes, l)
 	}
-	if !strings.HasPrefix(l, "[pr-relay] ") || strings.Count(sanitize.Fold(l), "[pr-relay]") != 1 {
+	if !strings.HasPrefix(l, "[pr-relay] ") || sanitize.CountTag(l) != 1 {
 		t.Errorf("tag not exactly once at offset 0: %q", l)
 	}
 	for _, r := range l {
@@ -161,7 +161,7 @@ func TestHostileFoldedFields(t *testing.T) {
 			{Type: model.EventClosed, Merged: true, Actor: model.Actor{Login: h, Type: "User"}},
 		}
 		for _, l := range Lines(testRef, evs) {
-			if n := strings.Count(sanitize.Fold(l), "[pr-relay]"); n != 1 {
+			if n := sanitize.CountTag(l); n != 1 {
 				t.Errorf("%q: folded tag count %d, want 1", l, n)
 			}
 			checkLine(t, l)

@@ -26,6 +26,12 @@
 //   - Invisible fillers (IN-01): U+3164, U+115F, U+1160, U+FFA0 and U+2800
 //     are printable per unicode.IsPrint but render blank, so they are
 //     stripped explicitly; they cannot split a tag or blank a login.
+//   - Default-ignorable runes (review CR-02): every
+//     Other_Default_Ignorable_Code_Point rune (U+034F COMBINING GRAPHEME
+//     JOINER, U+17B4/U+17B5, the Hangul fillers, ...) is stripped too. Some
+//     are Mn and pass unicode.IsPrint, yet render as nothing.
+//   - Tag matching skips combining marks and other invisible runes (see
+//     tagMatches), so a mark sitting on a tag letter cannot defeat it.
 //
 // Every function is pure, deterministic and idempotent.
 package sanitize
@@ -90,8 +96,13 @@ func clean(s string, limit int) []rune {
 	return out
 }
 
-// isFiller reports whether r is a printable-but-invisible filler (IN-01).
+// isFiller reports whether r is a printable-but-invisible filler (IN-01) or
+// any other default-ignorable code point (review CR-02), all of which render
+// as nothing and could otherwise split the envelope tag.
 func isFiller(r rune) bool {
+	if unicode.Is(unicode.Other_Default_Ignorable_Code_Point, r) {
+		return true
+	}
 	switch r {
 	case 0x3164, // U+3164 Hangul filler
 		0x115F, // Hangul choseong filler
@@ -150,34 +161,76 @@ func Path(s string, maxRunes int) string {
 var tagRunes = []rune("[pr-relay]")
 
 // NeutralizeTag replaces every run of runes in s that folds to "[pr-relay]"
-// (see Fold: case, NFKC and lookalike insensitive) by turning its first rune
-// into '(' and its last into ')', keeping the inner runes as they were. It
+// (see Fold: case, NFKC and lookalike insensitive; combining marks and other
+// invisible runes are skipped, see tagMatches) by turning its first rune into
+// '(' and its last into ')', keeping the inner runes as they were. It
 // preserves the rune count.
 func NeutralizeTag(s string) string {
 	if !hasOpenBracket(s) {
 		return s
 	}
 	rs := []rune(s)
-	changed := false
-	for i := 0; i+len(tagRunes) <= len(rs); i++ {
+	m := tagMatches(rs)
+	if len(m) == 0 {
+		return s
+	}
+	for _, span := range m {
+		rs[span[0]] = '('
+		rs[span[1]] = ')'
+	}
+	return string(rs)
+}
+
+// CountTag reports how many non-overlapping runs of s fold to "[pr-relay]",
+// using the same matching as NeutralizeTag. The render guard uses it, so a
+// tag split by combining marks or invisible runes is still counted.
+func CountTag(s string) int {
+	if !hasOpenBracket(s) {
+		return 0
+	}
+	return len(tagMatches([]rune(s)))
+}
+
+// tagMatches returns the rune indices (into rs) of the first and last rune of
+// every non-overlapping run that folds to "[pr-relay]" once tag-invisible
+// runes (see tagInvisible) are skipped.
+func tagMatches(rs []rune) [][2]int {
+	idx := make([]int, 0, len(rs))
+	folded := make([]rune, 0, len(rs))
+	for i, r := range rs {
+		if tagInvisible(r) {
+			continue
+		}
+		idx = append(idx, i)
+		folded = append(folded, foldRune(r))
+	}
+	var out [][2]int
+	n := len(tagRunes)
+	for i := 0; i+n <= len(folded); i++ {
 		match := true
 		for j, want := range tagRunes {
-			if foldRune(rs[i+j]) != want {
+			if folded[i+j] != want {
 				match = false
 				break
 			}
 		}
 		if match {
-			rs[i] = '('
-			rs[i+len(tagRunes)-1] = ')'
-			changed = true
-			i += len(tagRunes) - 1
+			out = append(out, [2]int{idx[i], idx[i+n-1]})
+			i += n - 1
 		}
 	}
-	if !changed {
-		return s
+	return out
+}
+
+// tagInvisible reports whether r is skipped when matching the tag: combining
+// marks (Mn, Me), format characters (Cf), variation selectors and
+// default-ignorable fillers. None of them changes how the tag reads.
+func tagInvisible(r rune) bool {
+	if r < utf8.RuneSelf {
+		return false
 	}
-	return string(rs)
+	return unicode.In(r, unicode.Mn, unicode.Me, unicode.Cf) ||
+		unicode.Is(unicode.Variation_Selector, r) || isFiller(r)
 }
 
 // hasOpenBracket reports whether any rune of s folds to '['.
