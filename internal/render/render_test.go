@@ -91,7 +91,63 @@ func TestGolden(t *testing.T) {
 	if got, want := len(lines), len(ev)-1; got != want {
 		t.Fatalf("got %d lines, want %d (one per known event)", got, want)
 	}
+	lines = append(lines,
+		DroppedLine(testRef, 3), DroppedLine(testRef, 1),
+		HeldLine(5), HeldLine(1))
 	testutil.Golden(t, "testdata/lines.golden", []byte(strings.Join(lines, "\n")+"\n"))
+}
+
+func TestEachAligned(t *testing.T) {
+	ev := []model.Event{
+		{Type: model.EventConflict, Conflicting: true},
+		{Type: model.EventType("labeled")},
+		{Type: model.EventClosed, Merged: true},
+	}
+	got := Each(testRef, ev)
+	if len(got) != len(ev) {
+		t.Fatalf("got %d elements, want %d", len(got), len(ev))
+	}
+	if got[1] != "" {
+		t.Errorf("unknown type: got %q, want empty", got[1])
+	}
+	want := Lines(testRef, ev)
+	if len(want) != 2 || got[0] != want[0] || got[2] != want[1] {
+		t.Errorf("Each %q does not align with Lines %q", got, want)
+	}
+	// Collision qualification is computed across the whole slice.
+	all := goldenEvents()
+	var nonEmpty []string
+	for _, l := range Each(testRef, all) {
+		if l != "" {
+			nonEmpty = append(nonEmpty, l)
+		}
+	}
+	if !reflect.DeepEqual(nonEmpty, Lines(testRef, all)) {
+		t.Errorf("Each with empties filtered differs from Lines")
+	}
+	if Each(model.PRRef{Owner: "a b", Repo: "r", Number: 1}, ev) != nil {
+		t.Errorf("invalid ref: want nil")
+	}
+}
+
+func TestNoteLines(t *testing.T) {
+	cases := []struct{ got, want string }{
+		{DroppedLine(testRef, 3), "[pr-relay] octo/repo#7 note: 3 earlier updates dropped https://github.com/octo/repo/pull/7"},
+		{DroppedLine(testRef, 1), "[pr-relay] octo/repo#7 note: 1 earlier update dropped https://github.com/octo/repo/pull/7"},
+		{HeldLine(5), "[pr-relay] note: 5 more updates held (message size limit), they arrive with the next delivery"},
+		{HeldLine(1), "[pr-relay] note: 1 more update held (message size limit), they arrive with the next delivery"},
+	}
+	for _, c := range cases {
+		if c.got != c.want {
+			t.Errorf("got %q, want %q", c.got, c.want)
+		}
+		if !fits(c.got) || strings.HasPrefix(c.got, "#") {
+			t.Errorf("note line fails fits or starts with '#': %q", c.got)
+		}
+	}
+	if got := DroppedLine(model.PRRef{Owner: "a b", Repo: "r", Number: 1}, 3); got != "" {
+		t.Errorf("invalid ref: got %q, want empty", got)
+	}
 }
 
 func TestLineGrammar(t *testing.T) {

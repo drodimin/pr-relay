@@ -7,11 +7,11 @@
 // The PR title, comment bodies, review text and log content are never
 // rendered; model.Event carries no such field (D-04, D-05).
 //
-// Lines returns one line per event and never joins them. Joining lines into
-// one prompt, coalescing, and any per-message line ceiling (flood guard)
-// belong to Phase 3 delivery, after spike S6 measures how herdr handles
-// multi-line and large prompts. That layer owns the prompt size, so it owns
-// the ceiling too (D-02, D-03).
+// Lines and Each return one line per event and never join them. Joining
+// lines into one prompt, coalescing and the per-message flood guard belong
+// to internal/compose, which owns the prompt size (D-02, D-03). DroppedLine
+// and HeldLine are the note lines compose uses for drop markers and held
+// overflow.
 //
 // The tag guard (fits) counts the tag with sanitize.CountTag over the whole
 // line (folded, with combining marks and invisible runes skipped), so a
@@ -45,18 +45,46 @@ var verdicts = map[string]string{
 // Lines renders events for ref, one line per known event, in input order.
 // Unknown event types are skipped. It returns nil if ref is not Valid.
 func Lines(ref model.PRRef, events []model.Event) []string {
+	var out []string
+	for _, l := range Each(ref, events) {
+		if l != "" {
+			out = append(out, l)
+		}
+	}
+	return out
+}
+
+// Each renders events aligned 1:1 with the input; element i is "" when event
+// i has an unknown type. It returns nil if ref is not Valid.
+func Each(ref model.PRRef, events []model.Event) []string {
 	if !ref.Valid() {
 		return nil
 	}
 	r := renderer{ref: ref, prefix: tag + " " + ref.String() + " ", pr: ref.URL()}
 	r.qualify = collisions(events)
-	var out []string
-	for _, e := range events {
+	out := make([]string, len(events))
+	for i, e := range events {
 		if l, ok := r.line(e); ok {
-			out = append(out, l)
+			out[i] = l
 		}
 	}
 	return out
+}
+
+// DroppedLine is the note shown at the start of a PR's group when the
+// pending cap dropped n earlier updates. It returns "" if ref is not Valid.
+func DroppedLine(ref model.PRRef, n int) string {
+	if !ref.Valid() {
+		return ""
+	}
+	return tag + " " + ref.String() + " note: " + plural(n, "earlier update") + " dropped " + ref.URL()
+}
+
+// HeldLine is the note that ends a message when the flood guard held n
+// lines back for the next delivery. It names no PR, because the held lines
+// can span several.
+func HeldLine(n int) string {
+	return tag + " note: " + plural(n, "more update") + " held (message size limit), they arrive with the next delivery"
 }
 
 type renderer struct {

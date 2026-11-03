@@ -1,0 +1,20 @@
+=== two-pr coalesced (lines=5 held=0)
+[pr-relay] octo/beta#2 ci.failed: lint https://github.com/octo/beta/pull/2/checks
+[pr-relay] octo/beta#2 comment by carol https://github.com/octo/beta/pull/2
+[pr-relay] octo/alpha#1 review approved by alice https://github.com/octo/alpha/pull/1
+[pr-relay] octo/alpha#1 comment by bob https://github.com/octo/alpha/pull/1
+[pr-relay] octo/alpha#1 commits: 2 new, head abc1234 https://github.com/octo/alpha/pull/1/commits
+=== superseded ci and cancelled conflict (lines=2 held=0)
+[pr-relay] octo/alpha#1 commits: force-pushed, head abc1234 (was def5678) https://github.com/octo/alpha/compare/def5678...abc1234
+[pr-relay] octo/alpha#1 ci.settled: passed (3 checks) https://github.com/octo/alpha/pull/1/checks
+=== drop marker (lines=4 held=0)
+[pr-relay] octo/beta#2 note: 3 earlier updates dropped https://github.com/octo/beta/pull/2
+[pr-relay] octo/beta#2 review changes_requested by alice https://github.com/octo/beta/pull/2
+[pr-relay] octo/beta#2 comment by bob https://github.com/octo/beta/pull/2
+[pr-relay] octo/gamma#3 closed: merged by alice https://github.com/octo/gamma/pull/3
+=== overflow held (lines=5 held=3)
+[pr-relay] octo/alpha#1 comment by bob https://github.com/octo/alpha/pull/1
+[pr-relay] octo/alpha#1 comment by carol https://github.com/octo/alpha/pull/1
+[pr-relay] octo/alpha#1 comment by dave https://github.com/octo/alpha/pull/1
+[pr-relay] octo/beta#2 comment by erin https://github.com/octo/beta/pull/2
+[pr-relay] note: 3 more updates held (message size limit), they arrive with the next delivery
