@@ -230,3 +230,15 @@ func (f *fakeEngine) SetPaneReachability(p poller.PaneRef, cannotSince time.Time
 }
 
 func (f *fakeEngine) PendingWake() <-chan struct{} { return f.pending }
+
+// removeSub deletes a subscription (as an unsub would) and pokes
+// PendingWake so the manager re-syncs.
+func (f *fakeEngine) removeSub(subID string) {
+	f.mu.Lock()
+	delete(f.subs, subID)
+	f.mu.Unlock()
+	select {
+	case f.pending <- struct{}{}:
+	default:
+	}
+}
