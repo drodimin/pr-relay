@@ -115,7 +115,17 @@ Plans:
   4. One daemon delivers to panes in two different herdr sessions (different sockets) at the same time.
   5. Closing a pane, reusing its pane id for a different terminal, or herdr reporting the target tab or pane gone cancels that subscription and drops its pending updates. A PR with no deliverable pane is polled at the slowest rate.
 
-**Plans**: TBD
+**Plans:** 8 plans
+
+Plans:
+- [ ] 03-01-PLAN.md — Store schema v2 (Subscription.AgentKind, v1->v2 migration) and [delivery] quiet_period config
+- [ ] 03-02-PLAN.md — internal/herdr one-shot NDJSON client, typed errors, socket ownership guard, herdrtest fake server
+- [ ] 03-03-PLAN.md — render.Each/DroppedLine/HeldLine and pure internal/compose (supersede rules, coalescing, 12 KiB flood guard, acks)
+- [ ] 03-04-PLAN.md — Engine hooks: PendingWake, PRView, AckMany, Cancel + ring, SetPaneReachability with LIFE-08 slowest-rate override
+- [ ] 03-05-PLAN.md — herdr events Stream and per-socket Endpoint with reconnect, backoff, events_lost and Reconnected signal
+- [ ] 03-06-PLAN.md — deliver per-pane worker: idle/done + quiet-period gate, D-13 identity, prompt, ack, cancel, reachability
+- [ ] 03-07-PLAN.md — deliver.Manager: endpoint per socket, worker lifecycle, pane closed/moved cancels, restart reconcile, real-engine integration
+- [ ] 03-08-PLAN.md — `pr-relay dev deliver` scratch harness, opt-in live test, human verification of success criteria
 
 ### Phase 4: Daemon, Control Protocol & CLI
 
@@ -152,6 +162,6 @@ Plans:
 |-------|----------------|--------|-----------|
 | 1. Toolchain, Spikes & Pure Core | 9/9 | Complete   | 2026-11-01 |
 | 2. Durable State & GitHub Poller | 12/12 | Complete   | 2026-11-02 |
-| 3. herdr Client & Delivery | 0/TBD | Not started | - |
+| 3. herdr Client & Delivery | 0/8 | Not started | - |
 | 4. Daemon, Control Protocol & CLI | 0/TBD | Not started | - |
 | 5. Packaging, Plugin & Agent Skill | 0/TBD | Not started | - |
