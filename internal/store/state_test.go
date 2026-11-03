@@ -5,6 +5,7 @@ import (
 	"os"
 	"reflect"
 	"regexp"
+	"strings"
 	"testing"
 	"time"
 
@@ -14,8 +15,8 @@ import (
 
 func TestNewState(t *testing.T) {
 	s := NewState()
-	if s.Version != SchemaVersion || SchemaVersion != 1 {
-		t.Fatalf("Version = %d, SchemaVersion = %d, want 1", s.Version, SchemaVersion)
+	if s.Version != SchemaVersion || SchemaVersion != 2 {
+		t.Fatalf("Version = %d, SchemaVersion = %d, want 2", s.Version, SchemaVersion)
 	}
 	if s.PRs == nil || len(s.PRs) != 0 {
 		t.Fatalf("PRs = %#v, want empty non-nil map", s.PRs)
@@ -100,7 +101,7 @@ func fullState() *State {
 	id2 := SubID("/tmp/herdr.sock", "w1:p2", key)
 	s.Subs[id1] = &Subscription{
 		ID: id1, PR: key, HerdrSocket: "/tmp/herdr.sock", PaneID: "w1:p1",
-		AgentSession: "sess-1", TerminalID: "term-1",
+		AgentSession: "sess-1", AgentKind: "codex", TerminalID: "term-1",
 		Events:    []model.EventType{model.EventCIFailed, model.EventReview},
 		CreatedAt: t0.Add(-time.Hour), UpdatedAt: t0, ClockAt: t0,
 		Pending: []PendingEvent{
@@ -175,16 +176,16 @@ func TestStateCloneNil(t *testing.T) {
 	}
 }
 
-func TestStateV1Golden(t *testing.T) {
+func TestStateV2Golden(t *testing.T) {
 	s := fullState()
 	b, err := json.MarshalIndent(s, "", "  ")
 	if err != nil {
 		t.Fatal(err)
 	}
 	b = append(b, '\n')
-	testutil.Golden(t, "testdata/state-v1.json", b)
+	testutil.Golden(t, "testdata/state-v2.json", b)
 
-	raw, err := os.ReadFile("testdata/state-v1.json")
+	raw, err := os.ReadFile("testdata/state-v2.json")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -201,5 +202,22 @@ func TestStateV1Golden(t *testing.T) {
 	}
 	if string(append(again, '\n')) != string(raw) {
 		t.Fatal("golden does not re-marshal byte-identically")
+	}
+}
+
+func TestSubscriptionAgentKindOmitEmpty(t *testing.T) {
+	b, err := json.Marshal(&Subscription{ID: "x"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(b), "agent_kind") {
+		t.Fatalf("empty AgentKind marshalled: %s", b)
+	}
+	b, err = json.Marshal(&Subscription{ID: "x", AgentKind: "claude"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(b), `"agent_kind":"claude"`) {
+		t.Fatalf("AgentKind not marshalled: %s", b)
 	}
 }
