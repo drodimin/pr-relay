@@ -519,6 +519,46 @@ func TestGapRefetchSecondaryLimitBacksOff(t *testing.T) {
 	}
 }
 
+// TestGapRefetchTransientFailureRecovers covers review WR-02: a transient
+// failure of the wide re-fetch must not advance Memory or add a drop marker,
+// so the next poll recovers every item.
+func TestGapRefetchTransientFailureRecovers(t *testing.T) {
+	h := newHarness(t)
+	info := h.sub(prA, "w1:p1")
+	h.pollNow(prA)
+	for i := 0; i < 40; i++ {
+		h.f.addComment(prA, "IC_"+strconv.Itoa(i), "bob", "User", h.at())
+	}
+	h.f.set(func(f *fakeGH) {
+		f.wideStatus = []fakeResp{{status: http.StatusBadGateway, body: `{}`}}
+	})
+	before := h.record(prA)
+	res := h.pollNow(prA)
+	if res.Err == nil || res.NewEvents != 0 {
+		t.Fatalf("PollResult Err %v NewEvents %d, want a transient error and no events", res.Err, res.NewEvents)
+	}
+	after := h.record(prA)
+	if !reflect.DeepEqual(before.Memory, after.Memory) {
+		t.Error("Memory advanced after a failed gap re-fetch")
+	}
+	if after.LastError != "transient" || !after.LastPollAt.After(before.LastPollAt) {
+		t.Errorf("LastError %q LastPollAt %v, want transient and advanced", after.LastError, after.LastPollAt)
+	}
+	if d := h.pending(info.SubID); len(d.Events) != 0 || d.Dropped != 0 {
+		t.Fatalf("pending %d dropped %d after failed re-fetch, want 0 and 0", len(d.Events), d.Dropped)
+	}
+
+	h.clk.Advance(time.Minute)
+	res = h.pollNow(prA)
+	d := h.pending(info.SubID)
+	if len(d.Events) != 40 || res.NewEvents != 40 || d.Dropped != 0 {
+		t.Fatalf("retry: pending %d NewEvents %d dropped %d, want 40, 40, 0", len(d.Events), res.NewEvents, d.Dropped)
+	}
+	if r := h.record(prA); r.LastError != "" {
+		t.Errorf("LastError %q after a clean retry", r.LastError)
+	}
+}
+
 func TestPersistentGapMarksDropped(t *testing.T) {
 	h := newHarness(t)
 	info := h.sub(prA, "w1:p1")

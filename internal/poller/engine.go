@@ -559,6 +559,11 @@ type stepped struct {
 	item    ghquery.AliasResult
 	res     diff.Result
 	gapLost bool
+	// gapErr is set when the wide re-fetch for this gapped PR failed as a
+	// whole. Its normal-window result is then not committed: Memory stays
+	// as it was, so the next poll re-derives the gap and can still recover
+	// every item (review WR-02).
+	gapErr error
 }
 
 // errClass is the LastError value for a per-PR or batch failure.
@@ -664,7 +669,7 @@ func (e *Engine) pollRefs(ctx context.Context, keys []string, forced bool) ([]Po
 			rateLimited = e.applyRateLimit(now, werr)
 			e.log.Warn("gap re-fetch failed", "prs", len(wref), "error", errClass(werr))
 			for _, i := range gapped {
-				steps[i].gapLost = true
+				steps[i].gapErr = werr
 			}
 		} else {
 			cost += wres.RateLimit.Cost
@@ -677,7 +682,9 @@ func (e *Engine) pollRefs(ctx context.Context, keys []string, forced bool) ([]Po
 			for j, i := range gapped {
 				it := itemFor(wres.Items, j, steps[i].ref)
 				if it.Err != nil {
-					steps[i].gapLost = true
+					// Record the item error and keep Memory unchanged,
+					// so a later poll can still close the gap.
+					steps[i].item = it
 					continue
 				}
 				steps[i].item = it
@@ -798,6 +805,14 @@ func (e *Engine) commit(steps []stepped, viewer string, now time.Time, forced bo
 		gen uint64
 	}
 	var polled []touched
+	// deferred are gapped PRs whose wide re-fetch failed. Like batchFailed,
+	// only their in-memory LastPollAt/LastError change; nothing durable is
+	// committed for them.
+	type deferredPR struct {
+		touched
+		class string
+	}
+	var deferred []deferredPR
 	for _, st := range steps {
 		pr := PollResult{Ref: st.ref, Cost: cost}
 		rep := PRReport{Key: st.key, Ref: st.ref}
@@ -809,7 +824,12 @@ func (e *Engine) commit(steps []stepped, viewer string, now time.Time, forced bo
 		}
 		polled = append(polled, touched{st.key, st.gen})
 		rec.LastPollAt = now
-		if st.item.Err != nil {
+		if st.gapErr != nil {
+			class := errClass(st.gapErr)
+			deferred = append(deferred, deferredPR{touched{st.key, st.gen}, class})
+			pr.Err = st.gapErr
+			rep.Err = class
+		} else if st.item.Err != nil {
 			class := errClass(st.item.Err)
 			if rec.LastError != class {
 				rec.LastError = class
@@ -866,6 +886,11 @@ func (e *Engine) commit(steps []stepped, viewer string, now time.Time, forced bo
 			if rec := e.state.PRs[p.key]; rec != nil && rec.Gen == p.gen {
 				rec.LastPollAt = now
 			}
+		}
+	}
+	for _, d := range deferred {
+		if rec := e.state.PRs[d.key]; rec != nil && rec.Gen == d.gen {
+			rec.LastError = d.class
 		}
 	}
 	return results, report, nil
