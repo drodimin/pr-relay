@@ -287,7 +287,7 @@ func TestMigrateV1ToV2(t *testing.T) {
 	if p, _ := s.Quarantine(); p != "" {
 		t.Fatalf("v1 file was quarantined to %s", p)
 	}
-	if got.Version != SchemaVersion || got.Version != 2 {
+	if got.Version != 2 {
 		t.Fatalf("loaded Version = %d, want 2", got.Version)
 	}
 	if got.Seq != want.Seq || got.NextGen != want.NextGen || got.Viewer != want.Viewer {

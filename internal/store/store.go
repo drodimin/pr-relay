@@ -131,12 +131,25 @@ func (s *Store) load() (*State, error) {
 	return &st, nil
 }
 
-// migrate upgrades raw state of the given version to SchemaVersion. It is the
-// hook for future schema changes; version 1 is current, so it is a no-op.
+// migrate upgrades raw state of the given version to SchemaVersion. Version 2
+// is current. Version 1 migrates additively: version 2 only adds the optional
+// Subscription.AgentKind field, so the migration rewrites the version key and
+// leaves every other byte of data as it was.
 func migrate(version int, raw []byte) ([]byte, error) {
 	switch version {
 	case SchemaVersion:
 		return raw, nil
+	case 1:
+		var m map[string]json.RawMessage
+		if err := json.Unmarshal(raw, &m); err != nil {
+			return nil, fmt.Errorf("store: migrate: v1: %w", err)
+		}
+		m["version"] = json.RawMessage("2")
+		out, err := json.Marshal(m)
+		if err != nil {
+			return nil, fmt.Errorf("store: migrate: v1: %w", err)
+		}
+		return out, nil
 	default:
 		return nil, fmt.Errorf("store: migrate: no migration from version %d", version)
 	}

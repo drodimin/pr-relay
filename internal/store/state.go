@@ -40,7 +40,7 @@ import (
 )
 
 // SchemaVersion is the state file schema version this binary writes.
-const SchemaVersion = 1
+const SchemaVersion = 2
 
 // State is the whole durable state of the daemon.
 type State struct {
@@ -98,6 +98,10 @@ type Subscription struct {
 	PaneID string `json:"pane_id"`
 	// AgentSession identifies the agent session in the pane, if known.
 	AgentSession string `json:"agent_session"`
+	// AgentKind is the herdr agent kind (for example "codex") captured at
+	// subscribe time. It is the D-13 fallback identity when AgentSession is
+	// empty.
+	AgentKind string `json:"agent_kind,omitempty"`
 	// TerminalID identifies the terminal in the pane, if known.
 	TerminalID string `json:"terminal_id"`
 	// Events is the event-type mask.
