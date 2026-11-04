@@ -115,7 +115,7 @@ Plans:
   4. One daemon delivers to panes in two different herdr sessions (different sockets) at the same time.
   5. Closing a pane, reusing its pane id for a different terminal, or herdr reporting the target tab or pane gone cancels that subscription and drops its pending updates. A PR with no deliverable pane is polled at the slowest rate.
 
-**Plans:** 8/12 plans complete (4 gap-closure plans pending)
+**Plans:** 10/12 plans executed
 
 Plans:
 **Wave 1**
@@ -145,8 +145,8 @@ Plans:
 
 **Gap Wave 1**
 
-- [ ] 03-09-PLAN.md — No ack on prompt wait timeout (CR-01), tri-state interactive_ready gate ahead of the identity check (WR-01, WR-02), unrenderable groups kept (IN-04)
-- [ ] 03-10-PLAN.md — dev deliver isolated state, foreign-sub refusal, unsubscribe on exit (CR-02); shared symlink-aware scratchguard (IN-05); TestLiveHerdr confirms text with pane.read
+- [x] 03-09-PLAN.md — No ack on prompt wait timeout (CR-01), tri-state interactive_ready gate ahead of the identity check (WR-01, WR-02), unrenderable groups kept (IN-04)
+- [x] 03-10-PLAN.md — dev deliver isolated state, foreign-sub refusal, unsubscribe on exit (CR-02); shared symlink-aware scratchguard (IN-05); TestLiveHerdr confirms text with pane.read
 
 **Gap Wave 2** *(blocked on 03-09)*
 
@@ -191,6 +191,6 @@ Plans:
 |-------|----------------|--------|-----------|
 | 1. Toolchain, Spikes & Pure Core | 9/9 | Complete   | 2026-11-01 |
 | 2. Durable State & GitHub Poller | 12/12 | Complete   | 2026-11-02 |
-| 3. herdr Client & Delivery | 8/8 | Complete   | 2026-11-04 |
+| 3. herdr Client & Delivery | 10/12 | In Progress|  |
 | 4. Daemon, Control Protocol & CLI | 0/TBD | Not started | - |
 | 5. Packaging, Plugin & Agent Skill | 0/TBD | Not started | - |
