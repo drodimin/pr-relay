@@ -100,7 +100,25 @@ type worker struct {
 	// cannotSince is the earliest time of the current cannot-receive run
 	// (zero while receivable).
 	cannotSince time.Time
+
+	// unconfirmed is the last prompt whose working-wait timed out: herdr
+	// accepted the text but never saw the agent start (CR-01). Its acks
+	// apply only once a later agent.get shows a completed turn.
+	unconfirmed *unconfirmedPrompt
+	// unconfirmedRuns counts consecutive unconfirmed prompts (backoff).
+	unconfirmedRuns int
 }
+
+// unconfirmedPrompt is a prompt that may or may not have reached the agent.
+type unconfirmedPrompt struct {
+	acks map[string]uint64
+	// completion is the agent's completion_seq before the prompt (nil when
+	// the agent had not completed a turn).
+	completion *uint64
+}
+
+// maxUnconfirmedBackoff caps the re-send backoff of unconfirmed prompts.
+const maxUnconfirmedBackoff = 16 * time.Minute
 
 func newWorker(pane poller.PaneRef, cl *herdr.Client, l link, eng Engine, cfg workerConfig, log *slog.Logger) *worker {
 	if log == nil {
@@ -173,6 +191,9 @@ func (w *worker) run(ctx context.Context) {
 			}
 			continue
 		}
+		if w.confirmUnconfirmed(info, matching) {
+			continue // re-read pending
+		}
 
 		switch info.Status {
 		case herdr.StatusWorking:
@@ -225,7 +246,51 @@ func (w *worker) quietThenDeliver(ctx context.Context, before herdr.AgentInfo) {
 	if len(matching) == 0 {
 		return
 	}
-	w.deliver(ctx, matching)
+	w.deliver(ctx, matching, info)
+}
+
+// confirmUnconfirmed acks the last unconfirmed prompt once the agent's
+// completion_seq advanced past its pre-prompt value, i.e. the agent finished
+// a turn after the text was typed. It reports whether it acked.
+//
+// state_change_seq movement alone and a working status alone are NOT
+// confirmation: both also move while an agent relaunches, which is exactly
+// when typed text is dropped (SC3). A user-started turn completing while
+// our text was dropped could confirm falsely (T-03-43, accepted).
+func (w *worker) confirmUnconfirmed(info herdr.AgentInfo, subs []store.Subscription) bool {
+	u := w.unconfirmed
+	if u == nil || info.CompletionSeq == nil {
+		return false
+	}
+	if u.completion != nil && *info.CompletionSeq <= *u.completion {
+		return false
+	}
+	present := make(map[string]bool, len(subs))
+	for _, s := range subs {
+		present[s.ID] = true
+	}
+	acks := make(map[string]uint64, len(u.acks))
+	for id, seq := range u.acks {
+		if present[id] {
+			acks[id] = seq
+		}
+	}
+	w.log.Info("delivered (confirmed by completed turn)", "subs", len(acks), "attempts", w.unconfirmedRuns)
+	w.unconfirmed, w.unconfirmedRuns = nil, 0
+	if len(acks) > 0 {
+		w.ack(acks)
+	}
+	return true
+}
+
+// unconfirmedBackoff is Recheck doubled per consecutive unconfirmed prompt,
+// capped at maxUnconfirmedBackoff.
+func (w *worker) unconfirmedBackoff() time.Duration {
+	d := w.cfg.Recheck
+	for i := 1; i < w.unconfirmedRuns && d < maxUnconfirmedBackoff; i++ {
+		d *= 2
+	}
+	return min(d, maxUnconfirmedBackoff)
 }
 
 // waitFree waits, bounded, for a working or blocked agent to become idle or
@@ -314,9 +379,11 @@ func (w *worker) cancel(s store.Subscription, reason string) {
 }
 
 // deliver composes every pending update of subs into one message, prompts
-// once and acks only what the message carried (D-04, D-05).
-func (w *worker) deliver(ctx context.Context, subs []store.Subscription) {
+// once and acks only what the message carried (D-04, D-05). before is the
+// agent snapshot the prompt is typed on.
+func (w *worker) deliver(ctx context.Context, subs []store.Subscription, before herdr.AgentInfo) {
 	var groups []compose.Group
+	unrenderable := 0
 	for _, s := range subs {
 		d, err := w.eng.Pending(s.ID)
 		if errors.Is(err, poller.ErrUnknownSub) {
@@ -334,11 +401,23 @@ func (w *worker) deliver(ctx context.Context, subs []store.Subscription) {
 			g.Ref = v.Ref
 			g.View = compose.View{HeadOID: v.HeadOID, Mergeable: v.Mergeable, State: v.State, Baselined: v.Baselined}
 		} else {
-			g.Ref = refFromKey(s.PR)
+			ref := refFromKey(s.PR)
+			if !ref.Valid() {
+				// Never prompted, never acked (IN-04).
+				w.log.Error("pending update has no renderable PR, kept queued", "sub", s.ID, "pr", s.PR)
+				unrenderable++
+				continue
+			}
+			g.Ref = ref
 		}
 		groups = append(groups, g)
 	}
 	if len(groups) == 0 {
+		if unrenderable > 0 {
+			// Nothing else to send: wait instead of re-gating every quiet
+			// period.
+			w.sleep(ctx, w.cfg.Recheck)
+		}
 		return
 	}
 	res := compose.Message(groups, compose.Limits{MaxBytes: w.cfg.MaxBytes})
@@ -354,10 +433,26 @@ func (w *worker) deliver(ctx context.Context, subs []store.Subscription) {
 	})
 	switch {
 	case err == nil:
+		w.unconfirmed, w.unconfirmedRuns = nil, 0
 	case herdr.Code(err) == herdr.CodeTimeout:
-		// The text was submitted; only the working-wait timed out
-		// (Pitfall 9). Retrying would duplicate it.
-		w.log.Warn("prompt submitted, working not observed", "lines", res.Lines, "subs", len(groups))
+		// herdr accepted the text but never saw the agent start working.
+		// A just-relaunched agent can report idle and drop it (SC3,
+		// CR-01), so this is not delivery: keep the updates queued and
+		// re-send with backoff unless a completed turn confirms it. A
+		// duplicate is accepted, a loss is not (D-05).
+		var completion *uint64
+		if before.CompletionSeq != nil {
+			c := *before.CompletionSeq
+			completion = &c
+		}
+		w.unconfirmed = &unconfirmedPrompt{acks: res.Acks, completion: completion}
+		w.unconfirmedRuns++
+		w.log.Warn("prompt not confirmed (working not observed), kept queued",
+			"lines", res.Lines, "subs", len(groups), "attempt", w.unconfirmedRuns)
+		// Poke-interruptible: an agent that starts working is re-gated
+		// at once.
+		w.sleep(ctx, w.unconfirmedBackoff())
+		return
 	default:
 		if ctx.Err() == nil {
 			w.log.Info("prompt not delivered, kept queued", "code", herdr.Code(err),
