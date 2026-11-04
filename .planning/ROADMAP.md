@@ -10,7 +10,7 @@ Design principle: flow-agnostic primitives. Only `--events` selects what a subsc
 
 - [x] **Phase 1: Toolchain, Spikes & Pure Core** - Go toolchain, runtime spikes, and the pure event/diff/render/sanitize core (completed 2026-11-01)
 - [x] **Phase 2: Durable State & GitHub Poller** - Atomic state store and a rate-limit-safe, deduplicated, adaptive GitHub poller (headless) (completed 2026-11-02)
-- [ ] **Phase 3: herdr Client & Delivery** - herdr socket client and per-pane delivery workers that never interrupt or mis-target an agent (gap closure in progress)
+- [x] **Phase 3: herdr Client & Delivery** - herdr socket client and per-pane delivery workers that never interrupt or mis-target an agent (gap closure in progress) (completed 2026-11-04)
 - [ ] **Phase 4: Daemon, Control Protocol & CLI** - Single daemon, auto-start, and the `sub`/`unsub`/`keep`/`ls`/`status` CLI with subscription lifecycle
 - [ ] **Phase 5: Packaging, Plugin & Agent Skill** - Cross-platform release, Homebrew tap, herdr plugin, agent skill and README
 
@@ -115,7 +115,7 @@ Plans:
   4. One daemon delivers to panes in two different herdr sessions (different sockets) at the same time.
   5. Closing a pane, reusing its pane id for a different terminal, or herdr reporting the target tab or pane gone cancels that subscription and drops its pending updates. A PR with no deliverable pane is polled at the slowest rate.
 
-**Plans:** 11/12 plans executed
+**Plans:** 12/12 plans complete
 
 Plans:
 **Wave 1**
@@ -154,7 +154,7 @@ Plans:
 
 **Gap Wave 3** *(blocked on 03-09..03-11)*
 
-- [ ] 03-12-PLAN.md — Full gate plus deferred IN-01..03, then live SC3 re-verification on a scratch herdr restart (checkpoint)
+- [x] 03-12-PLAN.md — Full gate plus deferred IN-01..03, then live SC3 re-verification on a scratch herdr restart (checkpoint)
 
 ### Phase 4: Daemon, Control Protocol & CLI
 
@@ -191,6 +191,6 @@ Plans:
 |-------|----------------|--------|-----------|
 | 1. Toolchain, Spikes & Pure Core | 9/9 | Complete   | 2026-11-01 |
 | 2. Durable State & GitHub Poller | 12/12 | Complete   | 2026-11-02 |
-| 3. herdr Client & Delivery | 11/12 | In Progress|  |
+| 3. herdr Client & Delivery | 12/12 | Complete   | 2026-11-04 |
 | 4. Daemon, Control Protocol & CLI | 0/TBD | Not started | - |
 | 5. Packaging, Plugin & Agent Skill | 0/TBD | Not started | - |

@@ -4,14 +4,14 @@ milestone: v1.0
 milestone_name: milestone
 status: executing
 stopped_at: Phase 3 context gathered
-last_updated: "2026-11-04T02:43:58.119Z"
+last_updated: "2026-11-04T14:18:35.754Z"
 last_activity: 2026-11-04
 progress:
   total_phases: 5
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 33
-  completed_plans: 32
-  percent: 40
+  completed_plans: 33
+  percent: 60
 ---
 
 # Project State
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-10-31)
 ## Current Position
 
 Phase: 03 (herdr-client-delivery) — EXECUTING
-Plan: 3 of 12
+Plan: 12 of 12
 Status: Ready to execute
 Last activity: 2026-11-04
 
@@ -54,6 +54,7 @@ Progress: [██████████] 100%
 
 *Updated after each plan completion*
 | Phase 01 P09 | 20 min | 3 tasks | 30 files |
+| Phase 03 P12 | 45min | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -67,6 +68,7 @@ Recent decisions affecting current work:
 - [Research]: Single atomic JSON state file behind a `Store` interface; GraphQL-only polling in v1
 - [Phase 01]: [01-09] Message wording locked and user-approved (lowercase verdicts, closed: merged/closed by X, ci.settled lists all failing names, force-push links compare URL)
 - [Phase 01]: [01-09] Self-authored push/force-push filtered by EVT-08; tests assert detection on raw diff output rather than weakening the filter
+- [Phase 03]: herdr 0.9.5 reports interactive_ready as explicit true for Claude agents (launch_pending never present); tri-state readiness gate handles it
 
 ### Pending Todos
 
@@ -85,6 +87,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-11-03T02:28:46.432Z
+Last session: 2026-11-04T14:18:30.654Z
 Stopped at: Phase 3 context gathered
-Resume file: .planning/phases/03-herdr-client-delivery/03-CONTEXT.md
+Resume file: None
