@@ -39,11 +39,14 @@ type AgentInfo struct {
 	// StateChangeSeq increases on every status change (0 when absent).
 	StateChangeSeq uint64 `json:"state_change_seq"`
 	// CompletionSeq is nil until the agent has completed a turn.
-	CompletionSeq    *uint64 `json:"completion_seq"`
-	TerminalID       string  `json:"terminal_id"`
-	Focused          bool    `json:"focused"`
-	LaunchPending    bool    `json:"launch_pending"`
-	InteractiveReady bool    `json:"interactive_ready"`
+	CompletionSeq *uint64 `json:"completion_seq"`
+	TerminalID    string  `json:"terminal_id"`
+	Focused       bool    `json:"focused"`
+	LaunchPending bool    `json:"launch_pending"`
+	// InteractiveReady is tri-state. herdr omits the key for long-running
+	// agents (observed on 0.9.5), so nil means "not reported" and only an
+	// explicit false means the agent is not ready for input.
+	InteractiveReady *bool `json:"interactive_ready"`
 }
 
 // PaneInfo is one pane from pane.get or pane.list. On a bare shell Agent is

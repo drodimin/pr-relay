@@ -157,17 +157,20 @@ func (w *worker) run(ctx context.Context) {
 			continue
 		}
 
+		// The settled gate runs before identify: the identity check can
+		// cancel subscriptions, and a mid-relaunch snapshot must never do
+		// that (WR-02).
+		if !settled(info) {
+			w.markCannot(w.now())
+			w.sleep(ctx, w.cfg.Recheck)
+			continue
+		}
 		matching, held := w.identify(subs, info)
 		if len(matching) == 0 {
 			if held {
 				w.markCannot(w.now())
 				w.sleep(ctx, w.cfg.Recheck)
 			}
-			continue
-		}
-		if info.LaunchPending || info.Status == herdr.StatusUnknown || info.Status == "" {
-			w.markCannot(w.now())
-			w.sleep(ctx, w.cfg.Recheck)
 			continue
 		}
 
@@ -189,6 +192,23 @@ func (w *worker) run(ctx context.Context) {
 	}
 }
 
+// settled reports whether herdr considers the agent's snapshot stable
+// enough to type into or to run the identity check on: no launch pending, a
+// known status, and readiness not explicitly false. An absent
+// interactive_ready key (herdr 0.9.5 on long-running agents) counts as
+// ready (WR-01).
+func settled(info herdr.AgentInfo) bool {
+	switch {
+	case info.LaunchPending:
+		return false
+	case info.Status == herdr.StatusUnknown || info.Status == "":
+		return false
+	case info.InteractiveReady != nil && !*info.InteractiveReady:
+		return false
+	}
+	return true
+}
+
 // quietThenDeliver waits the quiet period on a timer (never agent.wait,
 // which returns at once while idle) and delivers if the agent is still
 // free, unchanged and the same agent.
@@ -198,7 +218,7 @@ func (w *worker) quietThenDeliver(ctx context.Context, before herdr.AgentInfo) {
 		return // a signal restarts the window; ctx ends run
 	}
 	info, err := w.cl.AgentGet(ctx, w.pane.PaneID)
-	if err != nil || snapshotOf(info) != snap || info.LaunchPending {
+	if err != nil || snapshotOf(info) != snap || !settled(info) {
 		return // the loop re-gates
 	}
 	matching, _ := w.identify(w.paneSubs(), info)
