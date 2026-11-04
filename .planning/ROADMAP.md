@@ -10,7 +10,7 @@ Design principle: flow-agnostic primitives. Only `--events` selects what a subsc
 
 - [x] **Phase 1: Toolchain, Spikes & Pure Core** - Go toolchain, runtime spikes, and the pure event/diff/render/sanitize core (completed 2026-11-01)
 - [x] **Phase 2: Durable State & GitHub Poller** - Atomic state store and a rate-limit-safe, deduplicated, adaptive GitHub poller (headless) (completed 2026-11-02)
-- [x] **Phase 3: herdr Client & Delivery** - herdr socket client and per-pane delivery workers that never interrupt or mis-target an agent (completed 2026-11-04)
+- [ ] **Phase 3: herdr Client & Delivery** - herdr socket client and per-pane delivery workers that never interrupt or mis-target an agent (gap closure in progress)
 - [ ] **Phase 4: Daemon, Control Protocol & CLI** - Single daemon, auto-start, and the `sub`/`unsub`/`keep`/`ls`/`status` CLI with subscription lifecycle
 - [ ] **Phase 5: Packaging, Plugin & Agent Skill** - Cross-platform release, Homebrew tap, herdr plugin, agent skill and README
 
@@ -115,7 +115,7 @@ Plans:
   4. One daemon delivers to panes in two different herdr sessions (different sockets) at the same time.
   5. Closing a pane, reusing its pane id for a different terminal, or herdr reporting the target tab or pane gone cancels that subscription and drops its pending updates. A PR with no deliverable pane is polled at the slowest rate.
 
-**Plans:** 8/8 plans complete
+**Plans:** 8/12 plans complete (4 gap-closure plans pending)
 
 Plans:
 **Wave 1**
@@ -140,6 +140,21 @@ Plans:
 **Wave 5** *(blocked on Wave 4 completion)*
 
 - [x] 03-08-PLAN.md — `pr-relay dev deliver` scratch harness, opt-in live test, human verification of success criteria
+
+**Gap closure** *(from 03-VERIFICATION.md: SC3/DLV-08 failed)*
+
+**Gap Wave 1**
+
+- [ ] 03-09-PLAN.md — No ack on prompt wait timeout (CR-01), tri-state interactive_ready gate ahead of the identity check (WR-01, WR-02), unrenderable groups kept (IN-04)
+- [ ] 03-10-PLAN.md — dev deliver isolated state, foreign-sub refusal, unsubscribe on exit (CR-02); shared symlink-aware scratchguard (IN-05); TestLiveHerdr confirms text with pane.read
+
+**Gap Wave 2** *(blocked on 03-09)*
+
+- [ ] 03-11-PLAN.md — Cancel-failure backoff (WR-03), reconnect re-check of worker-less panes (WR-04), guarded pane_moved (WR-05), injectable jitter that removes the flake (WR-06)
+
+**Gap Wave 3** *(blocked on 03-09..03-11)*
+
+- [ ] 03-12-PLAN.md — Full gate plus deferred IN-01..03, then live SC3 re-verification on a scratch herdr restart (checkpoint)
 
 ### Phase 4: Daemon, Control Protocol & CLI
 
