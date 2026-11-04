@@ -183,13 +183,16 @@ func (w *worker) run(ctx context.Context) {
 			w.sleep(ctx, w.cfg.Recheck)
 			continue
 		}
-		matching, held := w.identify(subs, info)
-		if len(matching) == 0 {
-			if held {
-				w.markCannot(w.now())
-				w.sleep(ctx, w.cfg.Recheck)
-			}
+		matching, held, failed := w.identify(subs, info)
+		if failed || (len(matching) == 0 && held) {
+			// A failed cancel (store save error) would otherwise be retried
+			// at once, forever (WR-03): hold the pane for Recheck instead.
+			w.markCannot(w.now())
+			w.sleep(ctx, w.cfg.Recheck)
 			continue
+		}
+		if len(matching) == 0 {
+			continue // every sub was cancelled: the loop exits
 		}
 		if w.confirmUnconfirmed(info, matching) {
 			continue // re-read pending
@@ -242,9 +245,9 @@ func (w *worker) quietThenDeliver(ctx context.Context, before herdr.AgentInfo) {
 	if err != nil || snapshotOf(info) != snap || !settled(info) {
 		return // the loop re-gates
 	}
-	matching, _ := w.identify(w.paneSubs(), info)
-	if len(matching) == 0 {
-		return
+	matching, _, failed := w.identify(w.paneSubs(), info)
+	if failed || len(matching) == 0 {
+		return // the loop re-gates and backs off on a failed cancel
 	}
 	w.deliver(ctx, matching, info)
 }
@@ -335,8 +338,18 @@ func (w *worker) noAgent(ctx context.Context, subs []store.Subscription) bool {
 		if w.link.Up() {
 			upFor := w.now().Sub(w.link.UpSince())
 			if upFor >= w.cfg.RestoreGrace {
+				failed := false
 				for _, s := range subs {
-					w.cancel(s, poller.ReasonPaneGone)
+					if w.cancel(s, poller.ReasonPaneGone) != nil {
+						failed = true
+					}
+				}
+				if failed {
+					// Exiting with subs left would make the Manager respawn
+					// the worker at once (WR-03): hold and retry instead.
+					w.markCannot(w.now())
+					w.sleep(ctx, w.cfg.Recheck)
+					return false
 				}
 				w.markReceivable()
 				return true
@@ -356,26 +369,34 @@ func (w *worker) noAgent(ctx context.Context, subs []store.Subscription) bool {
 
 // identify applies D-13 to every sub: mismatches are cancelled, matches are
 // returned, and held reports whether any sub is waiting for its session to
-// be identified.
-func (w *worker) identify(subs []store.Subscription, info herdr.AgentInfo) (matching []store.Subscription, held bool) {
+// be identified. failed reports whether any mismatch cancel failed (the sub
+// still exists).
+func (w *worker) identify(subs []store.Subscription, info herdr.AgentInfo) (matching []store.Subscription, held, failed bool) {
 	for _, s := range subs {
 		switch checkIdentity(s, info) {
 		case identMatch:
 			matching = append(matching, s)
 		case identMismatch:
-			w.cancel(s, poller.ReasonIdentityMismatch)
+			if w.cancel(s, poller.ReasonIdentityMismatch) != nil {
+				failed = true
+			}
 		case identUnidentified:
 			held = true
 		}
 	}
-	return matching, held
+	return matching, held, failed
 }
 
-func (w *worker) cancel(s store.Subscription, reason string) {
+// cancel cancels s. It returns nil on success or when the sub is already
+// gone, and otherwise logs and returns the error (the sub still exists).
+func (w *worker) cancel(s store.Subscription, reason string) error {
 	// The engine logs the cancellation (D-17); nothing is typed.
-	if err := w.eng.Cancel(s.ID, reason); err != nil && !errors.Is(err, poller.ErrUnknownSub) {
-		w.log.Error("cancel failed", "sub", s.ID, "reason", reason, "err", err)
+	err := w.eng.Cancel(s.ID, reason)
+	if err == nil || errors.Is(err, poller.ErrUnknownSub) {
+		return nil
 	}
+	w.log.Error("cancel failed", "sub", s.ID, "reason", reason, "err", err)
+	return err
 }
 
 // deliver composes every pending update of subs into one message, prompts

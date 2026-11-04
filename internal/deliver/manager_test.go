@@ -2,6 +2,7 @@ package deliver
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"log/slog"
 	"net"
@@ -47,8 +48,9 @@ func newMgrHarness(t *testing.T, socks ...string) *mgrHarness {
 		h.srvs[filepath.Clean(s)] = herdrtest.New(t)
 	}
 	log := slog.New(slog.NewTextHandler(h.logs, &slog.HandlerOptions{Level: slog.LevelDebug}))
+	// Zero jitter makes the herdr reconnect backoff deterministic (WR-06).
 	m, err := New(Options{Engine: h.eng, Dial: h.dial, Logger: log, QuietPeriod: 10 * time.Second,
-		RestoreGrace: 10 * time.Second})
+		RestoreGrace: 10 * time.Second, Jitter: func() float64 { return 0 }})
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
@@ -244,6 +246,89 @@ func TestPaneMovedCancels(t *testing.T) {
 			if sub.PaneID == "w2:p5" {
 				t.Errorf("sub re-keyed to the new pane: %+v", sub)
 			}
+		}
+	})
+}
+
+// movedLine is a pane_moved event line from prev to the pane id now.
+func movedLine(prev, now string) string {
+	b, err := json.Marshal(map[string]any{"event": "pane_moved", "data": map[string]any{
+		"type":             "pane_moved",
+		"previous_pane_id": prev,
+		"pane":             map[string]any{"pane_id": now, "tab_id": "t1", "workspace_id": "w1"},
+	}})
+	if err != nil {
+		panic(err)
+	}
+	return string(b)
+}
+
+// TestPaneMovedSameIDPokes: a pane_moved whose previous id equals the new
+// id is not a move away: nothing is cancelled and the update is delivered
+// (WR-05).
+func TestPaneMovedSameIDPokes(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		h := newMgrHarness(t, sockA)
+		h.idle(sockA, testPane)
+		s := h.sub(sockA, testPane, prN(1))
+		h.eng.addPending(s.ID, comments(1, 1)...)
+		h.start()
+		h.advance(2 * time.Second)
+		h.srv(sockA).EmitRaw(movedLine(testPane, testPane))
+		synctest.Wait()
+		h.advance(time.Minute)
+		if got := h.eng.cancelLog(); len(got) != 0 {
+			t.Errorf("cancels = %v", got)
+		}
+		wantPromptCount(t, h.srv(sockA), 1)
+	})
+}
+
+// TestPaneMovedEmptyPreviousNoCancel: a pane_moved without a previous id
+// cancels nothing (WR-05).
+func TestPaneMovedEmptyPreviousNoCancel(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		h := newMgrHarness(t, sockA)
+		h.idle(sockA, testPane)
+		s := h.sub(sockA, testPane, prN(1))
+		h.eng.addPending(s.ID, comments(1, 1)...)
+		h.start()
+		h.advance(2 * time.Second)
+		h.srv(sockA).EmitRaw(movedLine("", testPane))
+		synctest.Wait()
+		h.advance(time.Minute)
+		if got := h.eng.cancelLog(); len(got) != 0 {
+			t.Errorf("cancels = %v", got)
+		}
+		if !h.eng.hasSub(s.ID) {
+			t.Error("sub removed")
+		}
+	})
+}
+
+// TestReconnectRechecksIdlePanes: a pane with no pending updates (so no
+// worker) that closed while herdr was down is reconciled after the
+// reconnect (WR-04, LIFE-04).
+func TestReconnectRechecksIdlePanes(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		h := newMgrHarness(t, sockA)
+		h.idle(sockA, testPane)
+		h.idle(sockA, "w1:p2")
+		kept := h.sub(sockA, testPane, prN(1))
+		gone := h.sub(sockA, "w1:p2", prN(2))
+		h.start()
+		h.advance(2 * time.Second)
+		srv := h.srv(sockA)
+		srv.Stop()
+		srv.RemovePane("w1:p2")
+		synctest.Wait()
+		srv.Restart()
+		h.advance(time.Minute)
+		if got := h.eng.cancelLog(); len(got) != 1 || got[0] != (fakeCancel{SubID: gone.ID, Reason: poller.ReasonPaneGone}) {
+			t.Errorf("cancels = %v", got)
+		}
+		if !h.eng.hasSub(kept.ID) {
+			t.Error("a pane that still exists was cancelled")
 		}
 	})
 }

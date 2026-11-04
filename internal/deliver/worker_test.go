@@ -935,3 +935,58 @@ func TestIdentityHeldWhileUnsettled(t *testing.T) {
 		}
 	})
 }
+
+// TestCancelFailureNoHotLoop: a mismatch cancel that fails (store save
+// error) holds the pane for Recheck instead of re-running at once (WR-03).
+func TestCancelFailureNoHotLoop(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		h := newHarness(t)
+		h.pane(herdrtest.PaneState{Agent: "claude", Session: "s2", Status: herdr.StatusIdle})
+		s := h.sub(testPane, "s1", "claude", prN(1))
+		h.eng.addPending(s.ID, comments(1, 1)...)
+		h.eng.setFailCancel(errors.New("disk full"))
+		h.start()
+		h.advance(5 * time.Minute)
+		if n := h.srv.CallCount("agent.get"); n > 10 {
+			t.Errorf("agent.get calls = %d, want <= 10 (hot loop)", n)
+		}
+		h.wantPrompts(0)
+		if !h.eng.hasSub(s.ID) {
+			t.Error("sub removed although cancel failed")
+		}
+		if !strings.Contains(h.logs.String(), "cancel failed") {
+			t.Errorf("no cancel failed log:\n%s", h.logs.String())
+		}
+		if _, ok := h.eng.reachFor(testRef); !ok {
+			t.Error("pane not reported as unable to receive")
+		}
+		h.eng.setFailCancel(nil)
+		h.advance(2 * time.Minute)
+		if got := h.eng.cancelLog(); !reflect.DeepEqual(got, []fakeCancel{{SubID: s.ID, Reason: poller.ReasonIdentityMismatch}}) {
+			t.Errorf("cancels = %v", got)
+		}
+	})
+}
+
+// TestPaneGoneCancelFailureHolds: a pane-gone cancel that fails keeps the
+// worker running (no exit-and-respawn loop) and bounded (WR-03).
+func TestPaneGoneCancelFailureHolds(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		h := newHarness(t)
+		h.link.setUp(time.Now().Add(-time.Minute))
+		s := h.sub(testPane, "s1", "claude", prN(1))
+		h.eng.addPending(s.ID, comments(1, 1)...)
+		h.eng.setFailCancel(errors.New("disk full"))
+		h.start()
+		h.advance(5 * time.Minute)
+		if !h.running() {
+			t.Error("worker exited while its subs still exist")
+		}
+		if n := h.srv.CallCount("pane.get"); n > 10 {
+			t.Errorf("pane.get calls = %d, want <= 10 (hot loop)", n)
+		}
+		if !h.eng.hasSub(s.ID) {
+			t.Error("sub removed although cancel failed")
+		}
+	})
+}

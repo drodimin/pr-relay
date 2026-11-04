@@ -23,7 +23,9 @@ type fakeEngine struct {
 	reach    map[poller.PaneRef]time.Time
 	reachLog []fakeReach
 	failAck  error
-	pending  chan struct{}
+	// failCancel, when set, makes Cancel fail without deleting the sub.
+	failCancel error
+	pending    chan struct{}
 	// beforeAck, when set, runs (without mu) at the start of AckMany, i.e.
 	// after the worker took its drains and sent the prompt.
 	beforeAck func()
@@ -139,6 +141,12 @@ func (f *fakeEngine) setFailAck(err error) {
 	f.failAck = err
 }
 
+func (f *fakeEngine) setFailCancel(err error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.failCancel = err
+}
+
 func (f *fakeEngine) List() []store.Subscription {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -212,6 +220,9 @@ func (f *fakeEngine) Cancel(subID, reason string) error {
 	defer f.mu.Unlock()
 	if f.subs[subID] == nil {
 		return poller.ErrUnknownSub
+	}
+	if f.failCancel != nil {
+		return f.failCancel
 	}
 	delete(f.subs, subID)
 	f.cancels = append(f.cancels, fakeCancel{SubID: subID, Reason: reason})
