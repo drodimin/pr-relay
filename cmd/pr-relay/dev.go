@@ -9,7 +9,6 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
-	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -24,6 +23,7 @@ import (
 	"github.com/drodimin/pr-relay/internal/paths"
 	"github.com/drodimin/pr-relay/internal/poller"
 	"github.com/drodimin/pr-relay/internal/render"
+	"github.com/drodimin/pr-relay/internal/scratchguard"
 	"github.com/drodimin/pr-relay/internal/store"
 )
 
@@ -58,18 +58,19 @@ func newDevCmd() *cobra.Command {
 	watch.Flags().StringVar(&cfgPath, "config", "", "read config from `FILE` instead of the default path")
 	dev.AddCommand(watch)
 
-	var socket, pane, dcfgPath string
+	var socket, pane, dcfgPath, dstateDir string
 	deliverCmd := &cobra.Command{
-		Use:   "deliver --socket PATH --pane ID [--config FILE] <PR-URL>...",
+		Use:   "deliver --socket PATH --pane ID [--config FILE] [--state-dir DIR] <PR-URL>...",
 		Short: "Deliver updates for the given pull requests into a scratch herdr pane",
 		Args:  cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runDevDeliver(cmd.Context(), cmd.OutOrStdout(), cmd.ErrOrStderr(), args, socket, pane, dcfgPath)
+			return runDevDeliver(cmd.Context(), cmd.OutOrStdout(), cmd.ErrOrStderr(), args, socket, pane, dcfgPath, dstateDir)
 		},
 	}
 	deliverCmd.Flags().StringVar(&socket, "socket", "", "scratch herdr session socket `PATH` (must contain /sessions/)")
 	deliverCmd.Flags().StringVar(&pane, "pane", "", "herdr pane `ID` to deliver into (for example w1:p1)")
 	deliverCmd.Flags().StringVar(&dcfgPath, "config", "", "read config from `FILE` instead of the default path")
+	deliverCmd.Flags().StringVar(&dstateDir, "state-dir", "", "keep state in `DIR` (default: a fresh temporary directory removed on exit; never the real state dir)")
 	_ = deliverCmd.MarkFlagRequired("socket")
 	_ = deliverCmd.MarkFlagRequired("pane")
 	dev.AddCommand(deliverCmd)
@@ -77,19 +78,11 @@ func newDevCmd() *cobra.Command {
 }
 
 // guardScratchSocket refuses any herdr socket that is not a scratch session
-// socket: the default ~/.config/herdr/herdr.sock and every path without
-// /sessions/ (T-03-30, mirrors spikes/lib.sh guard_socket). It never dials.
+// socket (T-03-30, mirrors spikes/lib.sh guard_socket). The rule lives in
+// scratchguard, which also resolves symlinks (IN-05). It never dials.
 func guardScratchSocket(path string) error {
-	refuse := fmt.Errorf("dev deliver: refusing %s: only scratch herdr sessions (a path containing /sessions/) are allowed", path)
-	if path == "" {
-		return refuse
-	}
-	clean := filepath.Clean(path)
-	if home, err := os.UserHomeDir(); err == nil && clean == filepath.Join(home, ".config/herdr/herdr.sock") {
-		return refuse
-	}
-	if !strings.Contains(clean, "/sessions/") {
-		return refuse
+	if err := scratchguard.Check(path); err != nil {
+		return fmt.Errorf("dev deliver: %w", err)
 	}
 	return nil
 }
@@ -97,7 +90,12 @@ func guardScratchSocket(path string) error {
 // runDevDeliver runs the poller and the delivery manager in the foreground,
 // delivering into one scratch herdr pane. It captures the pane's agent kind
 // and session at start, as Phase 4 sub will.
-func runDevDeliver(ctx context.Context, stdout, stderr io.Writer, args []string, socket, pane, cfgPath string) error {
+//
+// It never touches the real state (CR-02): state lives in stateDir, or in a
+// fresh temporary directory removed on exit. Before any herdr dial it refuses
+// to run if any subscription in that state targets a non-scratch socket, and
+// on exit it unsubscribes its own subscriptions so none outlive the run.
+func runDevDeliver(ctx context.Context, stdout, stderr io.Writer, args []string, socket, pane, cfgPath, stateDir string) error {
 	if err := guardScratchSocket(socket); err != nil {
 		return err
 	}
@@ -111,11 +109,33 @@ func runDevDeliver(ctx context.Context, stdout, stderr io.Writer, args []string,
 	ctx, stop := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	env, err := setupDev(stderr, args, cfgPath, nil, nil)
+	if stateDir == "" {
+		dir, err := os.MkdirTemp("", "pr-relay-dev-deliver-")
+		if err != nil {
+			return err
+		}
+		// Registered first, so it runs after the store is closed.
+		defer func() { _ = os.RemoveAll(dir) }()
+		if err := os.Chmod(dir, 0o700); err != nil {
+			return err
+		}
+		fmt.Fprintf(stderr, "state dir %s (temporary)\n", dir)
+		stateDir = dir
+	}
+
+	env, err := setupDev(stderr, args, cfgPath, stateDir, nil, nil)
 	if err != nil {
 		return err
 	}
 	defer func() { _ = env.st.Close() }()
+
+	// Every subscription in the state is a delivery target, so one that
+	// points at a non-scratch socket stops the run before any dial.
+	for _, s := range env.eng.List() {
+		if err := scratchguard.Check(s.HerdrSocket); err != nil {
+			return fmt.Errorf("dev deliver: state has a non-scratch subscription %s (%s); use a scratch --state-dir", s.ID, s.HerdrSocket)
+		}
+	}
 
 	hc, err := herdr.NewClient(herdr.Options{Socket: socket, Logger: env.log})
 	if err != nil {
@@ -133,17 +153,30 @@ func runDevDeliver(ctx context.Context, stdout, stderr io.Writer, args []string,
 		session = info.AgentSession.Value
 	}
 
+	// Own subscriptions are removed on exit. This defer is registered after
+	// the store close, so it runs before it, and after both Run goroutines
+	// have returned (the loop below waits for them).
+	var subIDs []string
+	defer func() {
+		for _, id := range subIDs {
+			if err := env.eng.Unsubscribe(id); err != nil {
+				fmt.Fprintf(stderr, "dev deliver: unsubscribe %s: %v\n", id, err)
+			}
+		}
+	}()
 	for _, ref := range env.refs {
-		if _, err := env.eng.Subscribe(poller.SubRequest{
+		si, err := env.eng.Subscribe(poller.SubRequest{
 			PR:           ref,
 			HerdrSocket:  socket,
 			PaneID:       pane,
 			AgentKind:    info.Agent,
 			AgentSession: session,
 			TerminalID:   info.TerminalID,
-		}); err != nil {
+		})
+		if err != nil {
 			return fmt.Errorf("subscribe %s: %w", ref, err)
 		}
+		subIDs = append(subIDs, si.SubID)
 		fmt.Fprintf(stdout, "subscribed %s pane=%s agent=%s\n", ref, pane, info.Agent)
 	}
 
@@ -259,9 +292,10 @@ type devEnv struct {
 }
 
 // setupDev parses the PR URLs, loads config, opens the store and builds the
-// GitHub client and poller. The caller must close env.st. before, when not
-// nil, runs after the logger is built and before the store is opened.
-func setupDev(stderr io.Writer, args []string, cfgPath string, onCommit func(poller.CommitReport), before func(*slog.Logger) error) (*devEnv, error) {
+// GitHub client and poller. The caller must close env.st. stateDir names the
+// state directory; empty means paths.StateDir(). before, when not nil, runs
+// after the logger is built and before the store is opened.
+func setupDev(stderr io.Writer, args []string, cfgPath, stateDir string, onCommit func(poller.CommitReport), before func(*slog.Logger) error) (*devEnv, error) {
 	refs := make([]model.PRRef, 0, len(args))
 	for _, a := range args {
 		ref, err := model.ParsePRURL(a)
@@ -293,9 +327,13 @@ func setupDev(stderr io.Writer, args []string, cfgPath string, onCommit func(pol
 		}
 	}
 
-	dir, err := paths.StateDir()
-	if err != nil {
-		return nil, err
+	dir := stateDir
+	if dir == "" {
+		d, err := paths.StateDir()
+		if err != nil {
+			return nil, err
+		}
+		dir = d
 	}
 	st, state, err := store.Open(dir)
 	if errors.Is(err, store.ErrLocked) {
@@ -343,7 +381,7 @@ func runDevWatch(ctx context.Context, stdout, stderr io.Writer, args []string, s
 		}
 	}()
 	pr := &devPrinter{out: stdout}
-	env, err := setupDev(stderr, args, cfgPath, func(r poller.CommitReport) { pr.onCommit(r) }, func(log *slog.Logger) error {
+	env, err := setupDev(stderr, args, cfgPath, "", func(r poller.CommitReport) { pr.onCommit(r) }, func(log *slog.Logger) error {
 		pr.log = log
 		if sinkPath == "" {
 			return nil

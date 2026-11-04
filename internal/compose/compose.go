@@ -63,9 +63,9 @@ type item struct {
 // render.HeldLine note ends the message (D-12). Only what was included is
 // acked, so nothing is lost. The input is not modified.
 func Message(groups []Group, lim Limits) Result {
-	max := lim.MaxBytes
-	if max <= 0 {
-		max = DefaultMaxBytes
+	limit := lim.MaxBytes
+	if limit <= 0 {
+		limit = DefaultMaxBytes
 	}
 
 	gs := make([]Group, len(groups))
@@ -106,9 +106,9 @@ func Message(groups []Group, lim Limits) Result {
 
 	// Without overflow everything is included. With overflow, reserve room
 	// for the held note sized for the worst-case count.
-	budget := max
-	if joinedLen(items) > max {
-		budget = max - len(render.HeldLine(total)) - 1
+	budget := limit
+	if joinedLen(items) > limit {
+		budget = limit - len(render.HeldLine(total)) - 1
 	}
 
 	var lines []string
