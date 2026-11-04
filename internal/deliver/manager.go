@@ -34,6 +34,9 @@ type Options struct {
 	RestoreGrace time.Duration
 	MaxBytes     int
 	Resync       time.Duration
+	// Jitter returns [-1,1] scaling the herdr reconnect backoff; nil means
+	// random; tests inject 0 (WR-06).
+	Jitter func() float64
 }
 
 // Manager delivers pending updates for every subscription. It keeps one
@@ -49,6 +52,7 @@ type Manager struct {
 	now    func() time.Time
 	cfg    workerConfig
 	resync time.Duration
+	jitter func() float64
 
 	running atomic.Bool
 
@@ -113,6 +117,7 @@ func New(o Options) (*Manager, error) {
 		log:    o.Logger,
 		now:    o.Now,
 		resync: o.Resync,
+		jitter: o.Jitter,
 		cfg: workerConfig{
 			QuietPeriod:  o.QuietPeriod,
 			RestoreGrace: o.RestoreGrace,
@@ -277,7 +282,8 @@ func (m *Manager) sync(ctx context.Context) {
 }
 
 func (m *Manager) startEndpoint(ctx context.Context, sock string, ids []string) (*epState, error) {
-	ep, err := herdr.NewEndpoint(herdr.EndpointOptions{Socket: sock, Dial: m.dial, Logger: m.log, Now: m.now})
+	ep, err := herdr.NewEndpoint(herdr.EndpointOptions{Socket: sock, Dial: m.dial, Logger: m.log, Now: m.now,
+		Jitter: m.jitter})
 	if err != nil {
 		return nil, err
 	}
@@ -372,6 +378,14 @@ func (m *Manager) handle(ctx context.Context, te taggedEvent) {
 			m.sync(ctx)
 		}
 	case herdr.KindPaneMoved:
+		// A move that keeps the id (or names no previous id) is not the
+		// pane going away: only re-check it (WR-05).
+		if ev.PreviousPaneID == "" || ev.PreviousPaneID == ev.PaneID {
+			if ws := m.workers[poller.PaneRef{HerdrSocket: es.socket, PaneID: ev.PaneID}]; ws != nil {
+				ws.w.poke()
+			}
+			return
+		}
 		// A cross-workspace move is the pane being gone (D-15, user
 		// decision): no re-keying to the new id.
 		if m.cancelPane(poller.PaneRef{HerdrSocket: es.socket, PaneID: ev.PreviousPaneID}, poller.ReasonPaneGone) {
@@ -399,6 +413,18 @@ func (m *Manager) handle(ctx context.Context, te taggedEvent) {
 			}
 		}
 		m.sync(ctx)
+		// Panes without a worker (nothing pending) get one pane.get check
+		// each, so a pane closed during the outage is cancelled (WR-04,
+		// LIFE-04). startCheck dedups and paneGone keeps the RestoreGrace
+		// guard, so a pane still being restored is never cancelled.
+		// KindReconnected also fires on pane-set resubscribes (IN-03,
+		// deferred): that costs one extra pane.get per worker-less pane.
+		for _, id := range m.subscribedPanes(es.socket) {
+			ref := poller.PaneRef{HerdrSocket: es.socket, PaneID: id}
+			if m.workers[ref] == nil {
+				m.startCheck(ctx, es, ref)
+			}
+		}
 	case herdr.KindDisconnected:
 		if es.up {
 			es.up = false
