@@ -2,11 +2,13 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"encoding/json"
 	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"syscall"
 	"testing"
@@ -110,16 +112,12 @@ func TestDevDeliverRefuses(t *testing.T) {
 	}
 }
 
-// TestDevDeliver runs the real binary against the fake GitHub and a fake
-// herdr on a real unix socket under a /sessions/ path, and checks that a new
-// comment is typed into the pane and that the pane identity is captured.
-func TestDevDeliver(t *testing.T) {
-	h := newHarness(t)
-	cfg := "[poll]\nmin_interval = \"100ms\"\nmax_interval = \"200ms\"\nmax_stretched_interval = \"400ms\"\n\n[delivery]\nquiet_period = \"200ms\"\n"
-	if err := os.WriteFile(h.cfgPath, []byte(cfg), 0o600); err != nil {
-		t.Fatal(err)
-	}
+const devDeliverCfg = "[poll]\nmin_interval = \"100ms\"\nmax_interval = \"200ms\"\nmax_stretched_interval = \"400ms\"\n\n[delivery]\nquiet_period = \"200ms\"\n"
 
+// scratchHerdr starts a fake herdr on a real unix socket under a /sessions/
+// path with one idle claude pane w1:p1.
+func scratchHerdr(t *testing.T) (*herdrtest.Server, string) {
+	t.Helper()
 	dir, err := os.MkdirTemp("", "hd")
 	if err != nil {
 		t.Fatal(err)
@@ -132,52 +130,146 @@ func TestDevDeliver(t *testing.T) {
 	srv := herdrtest.New(t)
 	sock := srv.ListenUnixAt(filepath.Join(sockDir, "h.sock"))
 	srv.SetPane(herdrtest.PaneState{ID: "w1:p1", TabID: "t1", WorkspaceID: "w1", Agent: "claude", Session: "s1", Status: herdr.StatusIdle})
+	return srv, sock
+}
 
-	ref := model.PRRef{Owner: "deliver-owner", Repo: "deliver-repo", Number: 9}
-	prURL := h.gh.addPR(ref)
+type devSubState struct {
+	PaneID       string `json:"pane_id"`
+	HerdrSocket  string `json:"herdr_socket"`
+	AgentKind    string `json:"agent_kind"`
+	AgentSession string `json:"agent_session"`
+}
 
-	p := h.startArgs("dev", "deliver", "--config", h.cfgPath, "--socket", sock, "--pane", "w1:p1", prURL)
-	stopProc := func() {
-		_ = p.cmd.Process.Kill()
-		_ = p.wait()
+// readSubs parses the subscriptions of dir/state.json.
+func readSubs(t *testing.T, dir string) (map[string]devSubState, []byte) {
+	t.Helper()
+	raw, err := os.ReadFile(filepath.Join(dir, "state.json"))
+	if err != nil {
+		t.Fatal(err)
 	}
+	var st struct {
+		Subs map[string]devSubState `json:"subs"`
+	}
+	if err := json.Unmarshal(raw, &st); err != nil {
+		t.Fatal(err)
+	}
+	return st.Subs, raw
+}
 
-	// The comment must land after the baseline poll, or it is absorbed.
+// waitBaselined polls dir/state.json until ref is baselined.
+func waitBaselined(t *testing.T, p *proc, dir string, ref model.PRRef) {
+	t.Helper()
+	key := strings.ToLower(ref.String())
 	deadline := time.Now().Add(10 * time.Second)
 	for {
-		st, ok, err := h.readState()
-		if err == nil && ok && st.PRs[strings.ToLower(ref.String())].Memory.Baselined {
-			break
+		raw, err := os.ReadFile(filepath.Join(dir, "state.json"))
+		if err == nil {
+			var st stateFile
+			if json.Unmarshal(raw, &st) == nil && st.PRs[key].Memory.Baselined {
+				return
+			}
 		}
 		if time.Now().After(deadline) {
-			stopProc()
-			t.Fatalf("no baseline\n%s", p.output())
+			_ = p.cmd.Process.Kill()
+			_ = p.wait()
+			t.Fatalf("no baseline in %s\n%s", dir, p.output())
 		}
 		time.Sleep(20 * time.Millisecond)
 	}
-	h.gh.addComment(ref, "IC_deliver1")
+}
 
-	var got []herdrtest.Prompt
-	deadline = time.Now().Add(10 * time.Second)
-	for {
-		got = srv.Prompts()
-		if len(got) > 0 {
-			break
-		}
+// waitPrompts waits for the first prompt, then gives a duplicate a chance to
+// arrive, and returns every prompt received.
+func waitPrompts(t *testing.T, p *proc, srv *herdrtest.Server) []herdrtest.Prompt {
+	t.Helper()
+	deadline := time.Now().Add(10 * time.Second)
+	for len(srv.Prompts()) == 0 {
 		if time.Now().After(deadline) {
-			stopProc()
+			_ = p.cmd.Process.Kill()
+			_ = p.wait()
 			t.Fatalf("no prompt reached the fake herdr\n%s", p.output())
 		}
 		time.Sleep(20 * time.Millisecond)
 	}
-	// Give a duplicate delivery a chance to show up.
 	time.Sleep(500 * time.Millisecond)
-	got = srv.Prompts()
+	return srv.Prompts()
+}
+
+// seedForeignSub runs dev watch until it has subscribed, leaving h.stateDir
+// with a subscription whose socket is "dev" (not a scratch socket).
+func seedForeignSub(t *testing.T, h *harness) {
+	t.Helper()
+	ref := model.PRRef{Owner: "foreign-owner", Repo: "foreign-repo", Number: 3}
+	p := h.start(false, h.gh.addPR(ref))
+	deadline := time.Now().Add(10 * time.Second)
+	for {
+		st, ok, err := h.readState()
+		if err == nil && ok && len(st.Subs) > 0 && st.PRs[strings.ToLower(ref.String())].Memory.Baselined {
+			break
+		}
+		if time.Now().After(deadline) {
+			_ = p.cmd.Process.Kill()
+			_ = p.wait()
+			t.Fatalf("dev watch did not subscribe\n%s", p.output())
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	_ = p.cmd.Process.Signal(syscall.SIGTERM)
+	_ = p.wait()
+	subs, _ := readSubs(t, h.stateDir)
+	foreign := false
+	for _, s := range subs {
+		if s.HerdrSocket == devSocket {
+			foreign = true
+		}
+	}
+	if !foreign {
+		t.Fatalf("seeded state has no %q subscription: %+v", devSocket, subs)
+	}
+}
+
+// TestDevDeliver runs the real binary against the fake GitHub and a fake
+// herdr on a real unix socket under a /sessions/ path. It checks that a new
+// comment is typed into the pane, that the pane identity is captured while
+// running, and that the run's own subscription is removed on exit (CR-02).
+func TestDevDeliver(t *testing.T) {
+	h := newHarness(t)
+	if err := os.WriteFile(h.cfgPath, []byte(devDeliverCfg), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	srv, sock := scratchHerdr(t)
+
+	ref := model.PRRef{Owner: "deliver-owner", Repo: "deliver-repo", Number: 9}
+	prURL := h.gh.addPR(ref)
+
+	p := h.startArgs("dev", "deliver", "--config", h.cfgPath, "--state-dir", h.stateDir, "--socket", sock, "--pane", "w1:p1", prURL)
+
+	// The comment must land after the baseline poll, or it is absorbed.
+	waitBaselined(t, p, h.stateDir, ref)
+	h.gh.addComment(ref, "IC_deliver1")
+
+	got := waitPrompts(t, p, srv)
 	if len(got) != 1 {
 		t.Errorf("got %d prompts, want 1: %+v", len(got), got)
 	}
 	if got[0].Target != "w1:p1" || !strings.Contains(got[0].Text, "[pr-relay]") || !strings.Contains(got[0].Text, ref.String()) {
 		t.Errorf("prompt = %+v, want [pr-relay] line for %s into w1:p1", got[0], ref)
+	}
+
+	// Identity is captured while the run is live.
+	subs, raw := readSubs(t, h.stateDir)
+	found := false
+	for _, s := range subs {
+		if s.PaneID != "w1:p1" {
+			continue
+		}
+		found = true
+		if s.AgentKind != "claude" || s.AgentSession != "s1" {
+			t.Errorf("sub identity kind=%q session=%q, want claude/s1", s.AgentKind, s.AgentSession)
+		}
+	}
+	if !found {
+		t.Errorf("no subscription for w1:p1 in state while running\n%s", raw)
 	}
 
 	if err := p.cmd.Process.Signal(syscall.SIGTERM); err != nil {
@@ -190,31 +282,98 @@ func TestDevDeliver(t *testing.T) {
 		t.Errorf("no subscribe line\n%s", p.output())
 	}
 
-	raw, err := os.ReadFile(filepath.Join(h.stateDir, "state.json"))
+	// No subscription outlives the run.
+	subs, raw = readSubs(t, h.stateDir)
+	for _, s := range subs {
+		if s.PaneID == "w1:p1" {
+			t.Errorf("subscription for w1:p1 left behind after exit\n%s", raw)
+		}
+	}
+}
+
+// TestDevDeliverRefusesForeignSubs checks that a state dir holding any
+// subscription with a non-scratch socket stops dev deliver before it dials
+// herdr (CR-02).
+func TestDevDeliverRefusesForeignSubs(t *testing.T) {
+	h := newHarness(t)
+	seedForeignSub(t, h)
+	srv, sock := scratchHerdr(t)
+
+	ref := model.PRRef{Owner: "deliver-owner", Repo: "deliver-repo", Number: 10}
+	prURL := h.gh.addPR(ref)
+	cmd := exec.Command(binPath, "dev", "deliver", "--config", h.cfgPath, "--state-dir", h.stateDir, "--socket", sock, "--pane", "w1:p1", prURL)
+	cmd.Env = h.env()
+	out, err := cmd.CombinedOutput()
+	if err == nil {
+		t.Fatalf("exit 0, want failure\n%s", out)
+	}
+	if !strings.Contains(string(out), "non-scratch subscription") {
+		t.Errorf("output lacks the refusal\n%s", out)
+	}
+	if c := srv.Calls(); len(c) != 0 {
+		t.Errorf("fake herdr got calls %v, want none", c)
+	}
+}
+
+// TestDevDeliverTempStateDefault checks that without --state-dir dev deliver
+// ignores PR_RELAY_STATE_DIR, uses a temporary state dir it removes on exit,
+// and leaves the configured state untouched (CR-02).
+func TestDevDeliverTempStateDefault(t *testing.T) {
+	h := newHarness(t)
+	seedForeignSub(t, h)
+	if err := os.WriteFile(h.cfgPath, []byte(devDeliverCfg), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	before, err := os.ReadFile(filepath.Join(h.stateDir, "state.json"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	var st struct {
-		Subs map[string]struct {
-			PaneID       string `json:"pane_id"`
-			AgentKind    string `json:"agent_kind"`
-			AgentSession string `json:"agent_session"`
-		} `json:"subs"`
+	srv, sock := scratchHerdr(t)
+
+	ref := model.PRRef{Owner: "deliver-owner", Repo: "deliver-repo", Number: 11}
+	prURL := h.gh.addPR(ref)
+	p := h.startArgs("dev", "deliver", "--config", h.cfgPath, "--socket", sock, "--pane", "w1:p1", prURL)
+
+	re := regexp.MustCompile(`state dir (\S+) \(temporary\)`)
+	var tmp string
+	deadline := time.Now().Add(10 * time.Second)
+	for {
+		if m := re.FindStringSubmatch(p.stderr.String() + p.stdout.String()); m != nil {
+			tmp = m[1]
+			break
+		}
+		if time.Now().After(deadline) {
+			_ = p.cmd.Process.Kill()
+			_ = p.wait()
+			t.Fatalf("no temporary state dir line\n%s", p.output())
+		}
+		time.Sleep(20 * time.Millisecond)
 	}
-	if err := json.Unmarshal(raw, &st); err != nil {
+	if tmp == h.stateDir {
+		t.Fatalf("temporary state dir is the configured state dir %s", tmp)
+	}
+
+	waitBaselined(t, p, tmp, ref)
+	h.gh.addComment(ref, "IC_deliver_tmp")
+	got := waitPrompts(t, p, srv)
+	if len(got) != 1 || !strings.Contains(got[0].Text, ref.String()) {
+		t.Errorf("got %d prompts, want 1 for %s: %+v", len(got), ref, got)
+	}
+
+	if err := p.cmd.Process.Signal(syscall.SIGTERM); err != nil {
 		t.Fatal(err)
 	}
-	found := false
-	for _, s := range st.Subs {
-		if s.PaneID != "w1:p1" {
-			continue
-		}
-		found = true
-		if s.AgentKind != "claude" || s.AgentSession != "s1" {
-			t.Errorf("sub identity kind=%q session=%q, want claude/s1", s.AgentKind, s.AgentSession)
-		}
+	if err := p.wait(); err != nil {
+		t.Fatalf("exit after SIGTERM: %v\n%s", err, p.output())
 	}
-	if !found {
-		t.Errorf("no subscription for w1:p1 in state\n%s", raw)
+	if _, err := os.Stat(tmp); !os.IsNotExist(err) {
+		t.Errorf("temporary state dir %s still exists after exit (stat err %v)", tmp, err)
+	}
+	after, err := os.ReadFile(filepath.Join(h.stateDir, "state.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(before, after) {
+		t.Errorf("configured state.json changed during the run\nbefore:\n%s\nafter:\n%s", before, after)
 	}
 }
