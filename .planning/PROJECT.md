@@ -90,4 +90,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-11-02 after Phase 2 (durable state and GitHub poller: crash-safe store, batched rate-limit-aware poller and the hidden `dev watch` harness are verified, including a live GitHub run; nothing is user-facing yet because sub/unsub/ls and delivery land in Phases 3-4, so no Active item moves to Validated)*
+*Last updated: 2026-11-04 after Phase 3 (herdr client and delivery: idle-gated, coalesced, supersede-aware push into agent panes across multiple herdr sessions, with no loss across a herdr restart; verified by tests and a live scratch-session SC3 run. Still not user-facing until the Phase 4 daemon and sub/unsub/ls CLI, so no Active item moves to Validated)*
