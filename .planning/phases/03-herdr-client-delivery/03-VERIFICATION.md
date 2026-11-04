@@ -1,126 +1,104 @@
 ---
 phase: 03-herdr-client-delivery
-verified: 2026-11-03T18:00:00Z
-status: gaps_found
-score: 4/5 roadmap success criteria verified
+verified: 2026-11-04T16:00:00Z
+status: passed
+score: 5/5 roadmap success criteria verified
 overrides_applied: 0
-gaps:
-  - truth: "SC3 / DLV-08: Restarting herdr or dropping the socket leaves queued updates intact and delivery recovers without losing queued updates"
-    status: failed
-    reason: "Live run (03-08) showed an update acked but never typed into the pane after a herdr restart. internal/deliver/worker.go ~L337 treats agent.prompt CodeTimeout (wait-for-working) as delivered and calls w.ack. The relaunched agent was idle but not interactive-ready, so the text was dropped. (CR-01, confirmed in code at verification time.)"
-    artifacts:
-      - path: "internal/deliver/worker.go"
-        issue: "case herdr.CodeTimeout falls through to w.ack(res.Acks); loses the update"
-      - path: "internal/deliver/worker_test.go"
-        issue: "TestPromptTimeoutCountsDelivered asserts the lossy behaviour"
-      - path: "internal/deliver/doc.go"
-        issue: "Documents ack-on-timeout as contract (L20-22)"
-      - path: "internal/deliver/live_test.go"
-        issue: "Passes on ack alone; never confirms text in the pane"
-    missing:
-      - "On CodeTimeout keep the update queued (return without ack) and re-gate; at-least-once duplicate is acceptable per D-05"
-      - "Invert TestPromptTimeoutCountsDelivered (pending stays, second prompt sent); update doc.go"
-      - "Make TestLiveHerdr confirm text appears in the pane (pane read) before asserting ack"
-  - truth: "SC3 / DLV-08 (contributing): delivery only to a pane that can actually receive input"
-    status: failed
-    reason: "WR-01: worker never checks AgentInfo.InteractiveReady (decoded at internal/herdr/types.go:46, read nowhere outside tests). A relaunched agent that is idle but not ready receives the prompt. grep confirms no non-test use."
-    artifacts:
-      - path: "internal/deliver/worker.go"
-        issue: "Gate at ~L168 and post-quiet re-check ~L201 only test LaunchPending and unknown status"
-      - path: "internal/herdr/herdrtest/server.go"
-        issue: "Sets interactive_ready = !launch_pending (L700-701); idle-but-not-ready is untestable"
-    missing:
-      - "Treat !InteractiveReady like LaunchPending in both gates (markCannot + recheck); let the fake set flags independently; add idle+not-ready test; confirm on herdr 0.9.5 that long-idle agents report ready=true"
-  - truth: "LIFE-02 / LIFE-04 / SC5: identity/closure cancellation is safe and complete"
-    status: partial
-    reason: "WR-02: destructive identity verdict (cancels sub, drops queue) runs before the launch-pending/unknown-status gate, so a transient mid-relaunch snapshot can irreversibly drop a queue (relevant to wrong-terminal safety and no-loss). WR-04: on KindReconnected (manager.go L389-401) only existing workers are poked; subscribed panes with empty queues are never re-checked, so a pane closed during an outage keeps its subscription and keeps being polled (LIFE-04 reconciliation, SC3 'reconciles pane state'). WR-05: pane_moved cancels unconditionally even if the id did not change."
-    artifacts:
-      - path: "internal/deliver/worker.go"
-        issue: "identify() at L160-172 precedes the LaunchPending/unknown gate"
-      - path: "internal/deliver/manager.go"
-        issue: "KindReconnected handler pokes only running workers (L396-400); pane_moved handler L374-379 cancels without checking id change"
-    missing:
-      - "Move readiness/launch-pending/unknown gate ahead of identify (or hold instead of cancel when unsettled)"
-      - "On KindReconnected run startCheck for every subscribed pane on that socket without a worker"
-      - "pane_moved: cancel only if previous_pane_id != pane_id, otherwise poke"
-  - truth: "Scratch-only safety guard for prompt-typing tooling (T-03-30) holds"
-    status: failed
-    reason: "CR-02: dev deliver validates only --socket, then runs a Manager over every subscription in the real state dir, so it can type into panes on any socket (including real herdr sessions) and leaves its subscriptions in the real state file. Not a roadmap SC, but violates the phase 'never type into the wrong terminal' intent for the harness. Also WR-03 (failed Cancel makes worker hot-loop with no backoff) and WR-06 (TestUnreachableReachability flake, unseeded jitter in Manager) are open."
-    artifacts:
-      - path: "cmd/pr-relay/dev.go"
-        issue: "setupDev uses real paths.StateDir(); no per-sub guard; subs not removed on exit"
-      - path: "internal/deliver/worker.go"
-        issue: "cancel() swallows errors; loop continues with no sleep (L160-167, 248-258, 289-294)"
-      - path: "internal/deliver/manager.go"
-        issue: "startEndpoint does not pass Jitter; test flakes ~5%"
-    missing:
-      - "dev deliver: isolated state dir or refuse if any sub fails guardScratchSocket; unsubscribe own subs on exit"
-      - "cancel returns error; markCannot + sleep on failure; noAgent returns false on failed cancel"
-      - "Add Jitter to deliver.Options, inject 0 in newMgrHarness (or advance >=37s)"
+re_verification:
+  previous_status: gaps_found
+  previous_score: 4/5
+  gaps_closed:
+    - "SC3 / DLV-08 ack on prompt timeout (CR-01)"
+    - "interactive_ready never checked (WR-01)"
+    - "Identity cancel before settled gate (WR-02)"
+    - "Cancel failure hot loop (WR-03)"
+    - "Reconnect does not re-check idle panes (WR-04)"
+    - "pane_moved cancels unconditionally (WR-05)"
+    - "dev deliver scratch guard bypass (CR-02)"
+    - "TestUnreachableReachability flake (WR-06)"
+  gaps_remaining: []
+  regressions: []
+warnings:
+  - "WR-07: poke-interruptible re-send backoff, no attempt cap (duplicates and token cost, not loss)"
+  - "WR-08: nil pre-prompt completion_seq baseline can confirm on first completion (narrow theoretical loss path)"
+  - "WR-09: dev watch writes subs into the real state dir (dev tooling only; Phase 4 daemon hazard)"
 ---
 
-# Phase 3: herdr Client & Delivery Verification Report
+# Phase 3: herdr Client & Delivery Verification Report (re-verification)
 
 **Phase Goal:** Queued updates reach the right agent pane at the right moment, coalesced and current, across herdr sessions and herdr restarts, without ever interrupting a busy agent or typing into the wrong terminal.
-**Status:** gaps_found
-**Re-verification:** No (initial)
+**Status:** passed (3 non-blocking warnings carried forward)
+**Re-verification:** Yes, after gap closure plans 03-09..03-12
 
-## Observable Truths (ROADMAP success criteria)
+## Roadmap Success Criteria
 
 | # | Truth | Status | Evidence |
 |---|-------|--------|----------|
-| 1 | Pushed via agent.prompt only after idle/done; held while working/blocked; never to unknown/bare shell | VERIFIED (with caveat) | Live PASS (blocked ~5 min, nothing typed; delivered ~13s after idle). Unknown/no-agent gating present in worker. Caveat: interactive_ready not checked (WR-01) |
-| 2 | Pending updates coalesced into one message rendered from current state; superseded CI failure not reported | VERIFIED | Live PASS (2 events, one 2-line prompt). internal/compose + supersede unit tests; review rates pure layers good |
-| 3 | herdr restart/socket drop leaves queued updates intact; daemon reconnects and reconciles | FAILED (BLOCKER) | Reconnect works, but update acked and lost after restart (CR-01 confirmed at worker.go ~L337-350). Idle-pane reconciliation missing (WR-04) |
-| 4 | One daemon delivers to two herdr sessions at once | VERIFIED (automated only) | Live skipped (optional); TestTwoSessions synctest covers it. No live evidence |
-| 5 | Pane close / id reuse / tab or pane gone cancels sub and drops pending; no-deliverable-pane PR polled slowest | VERIFIED (with caveats) | Live PASS: cancelled reason=pane_closed within 1s. LIFE-08 via SetPaneReachability (plan 04). Caveats WR-02, WR-04, WR-05 |
+| 1 | Prompt only after idle/done; held while working/blocked; never to unknown status or bare shell | VERIFIED | worker.go run loop switches on status: working/blocked wait (`waitFree`), idle/done go to `quietThenDeliver`, default (unknown) marks cannot and sleeps. `settled()` (worker.go ~L224) additionally refuses launch_pending, unknown/empty status, and explicit `interactive_ready:false`, and it runs both pre-quiet and in the post-quiet re-check. Live PASS in 03-08 (blocked ~5 min, nothing typed). |
+| 2 | Coalesced single message from current state | VERIFIED | `compose.Message` builds one text per delivery; empty result acks silently without typing. Live PASS (2 events, one prompt). Unit tests pass. |
+| 3 | Herdr restart/socket drop leaves queue intact; daemon reconnects and reconciles | VERIFIED | Prompt `CodeTimeout` no longer acks: worker.go L458-476 stores `unconfirmed`, keeps updates queued, and backs off. Acks occur only on `err == nil` or a completion-confirmed turn. `KindReconnected` now re-checks worker-less subscribed panes (manager.go ~L416-427, test `TestReconnectRechecksIdlePanes`). Live SC3 re-run on herdr 0.9.5 (03-12): update queued during busy, herdr stopped and relaunched, `[pr-relay] ... ci.settled: passed (6 checks)` appeared in the pane, acked only afterwards, no loss or duplicate. I did not re-run the live scenario myself; I rely on the user-approved 03-12 record. |
+| 4 | One daemon, two herdr sessions | VERIFIED (automated) | `TestTwoSessions` (synctest) passes; endpoint per socket in Manager. No live run; optional per plan. |
+| 5 | Pane close, id reuse, tab/pane gone cancel sub and drop pending; no-deliverable-pane polled slowest | VERIFIED | Live pane_closed cancel within 1s. Identity check now follows the settled gate (WR-02), cancel failures hold with backoff (WR-03), `pane_moved` only cancels when id actually changed (WR-05). LIFE-08 via `SetPaneReachability`; flake fixed by injected Jitter (200/200 per 03-12). |
 
-**Score:** 4/5 SCs verified; SC3 failed.
+**Score:** 5/5
+
+## Previously Reported Gaps
+
+| Gap | Status | Evidence |
+|-----|--------|----------|
+| CR-01 ack on CodeTimeout | CLOSED | worker.go L450-476 as above; `TestPromptTimeoutKeepsQueued` replaces the lossy test; doc.go updated; `TestLiveHerdr` requires a pane.read read-back before asserting ack. |
+| WR-01 interactive_ready | CLOSED in code | Tri-state `*bool` in types.go; `settled()` refuses explicit false. Inert on 0.9.5 (live shows explicit true), so protection there comes from status unknown plus CR-01. Stale comments (IN-07) are cosmetic. |
+| WR-02 identity before gate | CLOSED | `settled` precedes `identify` in loop and post-quiet. |
+| WR-03 hot loop | CLOSED | cancel returns error, loop sleeps Recheck on failure. |
+| WR-04 reconnect reconcile | CLOSED | manager.go reconnect handler. |
+| WR-05 pane_moved | CLOSED | guarded on changed id. |
+| WR-06 flake | CLOSED | Options.Jitter injected. |
+| CR-02 dev deliver guard | CLOSED for dev deliver | Temp state dir default, refuse foreign subs, unsubscribe on exit, shared `internal/scratchguard`. Residual is WR-09. |
+
+## Judgment of the new review warnings
+
+- **WR-07 (re-send backoff interruptible, no cap):** Does not defeat any SC or must_have. The failure mode is duplicate prompts (at-least-once, explicitly accepted by D-05) and wasted agent tokens for agents herdr never classifies as `working` within PromptWait. It is a robustness and cost issue (tension with the project's token-saving value) but never loses an update or types into a busy or wrong pane (the settled/idle gate still applies before every prompt). Warning, recommend fixing in Phase 4 (retry deadline plus attempt cap).
+- **WR-08 (nil baseline confirms on first completion):** A real but narrow theoretical loss path against DLV-08: it requires a prompt timeout, text actually dropped, a nil pre-prompt completion_seq, and then a first completed turn that was not caused by our text (for example a user turn). Live SC3 did not hit it (prompt succeeded directly), and the roadmap criterion as observed passes. I do not treat it as defeating SC3, but it is the most important follow-up: require `sawWorking` or always re-send when baseline is nil. Warning.
+- **WR-09 (dev watch real state dir):** Dev tooling residual, outside every roadmap SC. No daemon exists yet to be affected. Fix before Phase 4 (temp state dir for dev watch, and have Manager.sync skip non-absolute sockets). Warning.
 
 ## Requirements Coverage
 
-All 10 IDs appear in plan frontmatter (03-01..03-08) and REQUIREMENTS.md; no orphans. REQUIREMENTS.md checkboxes for them are still unchecked.
+All 10 IDs (DLV-01, 02, 03, 04, 07, 08, 09, LIFE-02, 04, 08) are claimed in plan frontmatter and present in REQUIREMENTS.md; no orphans.
 
 | Req | Status | Evidence |
 |-----|--------|----------|
-| DLV-01 | SATISFIED (caveat WR-01) | agent.prompt push; live pass |
-| DLV-02 | SATISFIED | blocked/working hold, live pass |
-| DLV-03 | SATISFIED | unknown/no-agent gating; unit tests |
-| DLV-04 | SATISFIED | coalescing live pass |
-| DLV-07 | SATISFIED | render from current state / supersede |
-| DLV-08 | BLOCKED | silent loss after herdr restart (CR-01); WR-01 contributes |
-| DLV-09 | SATISFIED (synctest only) | TestTwoSessions; no live run |
-| LIFE-02 | SATISFIED (caveats WR-02, WR-05) | live pane_closed cancel |
-| LIFE-04 | PARTIAL | cancel-on-send works; reconnect reconciliation of idle panes missing (WR-04) |
-| LIFE-08 | SATISFIED | slowest-rate override on unreachable, plan 04 tests |
+| DLV-01 | SATISFIED | agent.prompt push, live |
+| DLV-02 | SATISFIED | working/blocked hold, live |
+| DLV-03 | SATISFIED | settled() + default branch |
+| DLV-04 | SATISFIED | compose coalescing, live |
+| DLV-07 | SATISFIED | render from current state + supersede |
+| DLV-08 | SATISFIED (see WR-08 caveat) | no ack on timeout; live restart passed |
+| DLV-09 | SATISFIED (automated) | TestTwoSessions |
+| LIFE-02 | SATISFIED | live pane_closed; guarded pane_moved |
+| LIFE-04 | SATISFIED | cancel at send, reconnect re-check |
+| LIFE-08 | SATISFIED | reachability override, flake fixed |
 
-## Anti-Patterns / Review Findings
-
-| Finding | Severity | Impact |
-|---------|----------|--------|
-| CR-01 ack on CodeTimeout | BLOCKER | SC3/DLV-08 failed |
-| WR-01 interactive_ready unchecked | BLOCKER (contributing to SC3) | prompt dropped into not-ready agent |
-| CR-02 dev deliver bypasses scratch guard | BLOCKER for harness safety | can type into non-scratch panes |
-| WR-02, WR-04, WR-05 | Warning, affect LIFE-02/04 | wrong-time cancel / missed cancel |
-| WR-03 | Warning | hot loop on Cancel failure |
-| WR-06 | Warning | flaky test (~5%) |
-| IN-01..IN-06 | Info | see 03-REVIEW.md |
+Bookkeeping: REQUIREMENTS.md checkboxes and traceability still show DLV-02, 03, 04, 07, 09 and LIFE-08 as unchecked/Pending. Update them to Complete.
 
 ## Behavioral Spot-Checks
 
-Not re-run by the verifier. Gate evidence supplied by the orchestrator: go build, go vet, go test -race ./... pass on HEAD 134e90c. Passing tests do not cover the failures above, since CR-01 is encoded by a passing test.
+`go build ./...`, `go vet ./...`, `go test -race ./...` run by me on HEAD edd6a4e: all packages ok.
+
+## Anti-Patterns
+
+No TBD/FIXME/XXX introduced that I found in the reviewed paths; review reports 0 critical. Info items IN-07..IN-10 and deferred IN-01..IN-03 are non-blocking (deferred-items.md lists Phase 4 hardening).
 
 ## Human Verification
 
-After gap closure, re-run the live SC3 scenario (restart scratch herdr with queued update; confirm the text appears in the pane). Optionally run live SC4 with two sessions.
+None outstanding. Live SC3 already approved by user in 03-12. Optional: live two-session run for SC4.
 
-## Gaps Summary
+## Recommended follow-ups (non-blocking, before or in Phase 4)
 
-One roadmap criterion (SC3, DLV-08) fails on live evidence and confirmed code inspection. The root cause is acking on a prompt wait timeout, compounded by never checking interactive_ready. Related correctness gaps hit LIFE-04 reconciliation (WR-04), identity-check ordering (WR-02), and harness safety (CR-02). Suggested closure plans:
-1. Delivery no-loss: CR-01 + WR-01 (+ tests, doc, live test pane confirmation), then re-run live SC3.
-2. Lifecycle correctness: WR-02, WR-03, WR-04, WR-05.
-3. Harness and test hygiene: CR-02, WR-06, IN-04/IN-05 as desired.
+1. WR-08: require observed `working` (or re-send) when no pre-prompt completion baseline.
+2. WR-07: retry deadline rather than poke-interruptible sleep, plus attempt cap with ERROR log.
+3. WR-09: isolate `dev watch` state; skip non-absolute sockets in Manager.sync.
+4. Tick REQUIREMENTS.md boxes.
 
 ---
-_Verified: 2026-11-03_
+_Verified: 2026-11-04_
 _Verifier: Claude (gsd-verifier)_

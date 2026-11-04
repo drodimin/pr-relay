@@ -2,9 +2,9 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: executing
-stopped_at: Phase 3 context gathered
-last_updated: "2026-11-04T14:18:35.754Z"
+status: ready_to_plan
+stopped_at: Phase 03 complete (12/12) — ready to discuss Phase 4
+last_updated: 2026-11-04T14:26:39.245Z
 last_activity: 2026-11-04
 progress:
   total_phases: 5
@@ -21,13 +21,13 @@ progress:
 See: .planning/PROJECT.md (updated 2026-10-31)
 
 **Core value:** An agent runs `pr-relay sub <PR link>` once, returns immediately, and later receives a relevant PR update in its pane without spending tokens on polling. One poller serves every agent on the machine.
-**Current focus:** Phase 03 — herdr-client-delivery
+**Current focus:** Phase 4 — daemon, control protocol & cli
 
 ## Current Position
 
-Phase: 03 (herdr-client-delivery) — EXECUTING
-Plan: 12 of 12
-Status: Ready to execute
+Phase: 4
+Plan: Not started
+Status: Ready to plan
 Last activity: 2026-11-04
 
 Progress: [██████████] 100%
@@ -36,7 +36,7 @@ Progress: [██████████] 100%
 
 **Velocity:**
 
-- Total plans completed: 21
+- Total plans completed: 33
 - Average duration: - min
 - Total execution time: 0.0 hours
 
@@ -46,6 +46,7 @@ Progress: [██████████] 100%
 |-------|-------|-------|----------|
 | 01 | 9 | - | - |
 | 02 | 12 | - | - |
+| 03 | 12 | - | - |
 
 **Recent Trend:**
 

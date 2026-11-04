@@ -34,14 +34,14 @@
 ### Delivery (herdr)
 
 - [x] **DLV-01**: Updates are pushed into the subscribed pane via herdr `agent.prompt`. The agent never polls, sleeps, or waits.
-- [ ] **DLV-02**: Updates are held while the pane's agent is `working` or `blocked`, and delivered when it becomes idle or done. A blocked agent is never interrupted.
-- [ ] **DLV-03**: Nothing is ever delivered to a pane whose agent status is unknown or that has no agent, such as a bare shell.
-- [ ] **DLV-04**: Multiple pending updates for one pane are coalesced into a single message.
+- [x] **DLV-02**: Updates are held while the pane's agent is `working` or `blocked`, and delivered when it becomes idle or done. A blocked agent is never interrupted.
+- [x] **DLV-03**: Nothing is ever delivered to a pane whose agent status is unknown or that has no agent, such as a bare shell.
+- [x] **DLV-04**: Multiple pending updates for one pane are coalesced into a single message.
 - [x] **DLV-05**: Messages are terse: a fixed `[pr-relay]` tag, the PR identity, what changed, names, and URLs. They never include comment bodies, review text, or log content.
 - [x] **DLV-06**: Every PR-derived string in a message (check names, usernames, branch and PR titles) is sanitized and length-capped, with control characters and newlines stripped. This prevents prompt injection and terminal escape sequences.
-- [ ] **DLV-07**: Messages describe the PR's current state at delivery time, so an update superseded while the agent was busy is never delivered stale. For example, a CI failure fixed by a newer push is not reported as a failure.
+- [x] **DLV-07**: Messages describe the PR's current state at delivery time, so an update superseded while the agent was busy is never delivered stale. For example, a CI failure fixed by a newer push is not reported as a failure.
 - [x] **DLV-08**: Delivery recovers when herdr restarts or the socket drops: the daemon reconnects and reconciles pane state without losing queued updates.
-- [ ] **DLV-09**: One daemon can deliver to panes in multiple herdr sessions, which have different sockets.
+- [x] **DLV-09**: One daemon can deliver to panes in multiple herdr sessions, which have different sockets.
 
 ### Lifecycle
 
@@ -52,7 +52,7 @@
 - [x] **LIFE-05**: Polling slows down progressively the longer a PR has no activity, from about 1 minute while CI is pending to about 1 hour for long-quiet PRs. It returns to the fast rate as soon as any change is detected.
 - [ ] **LIFE-06**: After 24 hours with no activity on a subscribed PR, the agent receives one check-in message asking whether it still needs the subscription. The message offers `pr-relay keep <PR link>` to keep it and `pr-relay unsub <PR link>` to drop it. `keep` resets the inactivity clock. If the agent doesn't respond, the PR drops to the slowest polling rate.
 - [ ] **LIFE-07**: A subscription with no PR activity for 7 days is cancelled automatically, and the agent receives one final "subscription expired" message. Both the 7-day expiry and the 24-hour check-in can be changed in config.
-- [ ] **LIFE-08**: When no subscribed pane for a PR can currently receive updates, because herdr is unreachable or every agent has been blocked for a long time, that PR is polled at the slowest rate.
+- [x] **LIFE-08**: When no subscribed pane for a PR can currently receive updates, because herdr is unreachable or every agent has been blocked for a long time, that PR is polled at the slowest rate.
 
 ### Daemon & GitHub
 
@@ -124,14 +124,14 @@
 | DIST-04 | Phase 5 | Pending |
 | DIST-05 | Phase 5 | Pending |
 | DLV-01 | Phase 3 | Complete |
-| DLV-02 | Phase 3 | Pending |
-| DLV-03 | Phase 3 | Pending |
-| DLV-04 | Phase 3 | Pending |
+| DLV-02 | Phase 3 | Complete |
+| DLV-03 | Phase 3 | Complete |
+| DLV-04 | Phase 3 | Complete |
 | DLV-05 | Phase 1 | Complete |
 | DLV-06 | Phase 1 | Complete |
-| DLV-07 | Phase 3 | Pending |
+| DLV-07 | Phase 3 | Complete |
 | DLV-08 | Phase 3 | Complete |
-| DLV-09 | Phase 3 | Pending |
+| DLV-09 | Phase 3 | Complete |
 | DMN-01 | Phase 4 | Pending |
 | DMN-02 | Phase 2 | Complete |
 | DMN-03 | Phase 2 | Complete |
@@ -156,7 +156,7 @@
 | LIFE-05 | Phase 2 | Complete |
 | LIFE-06 | Phase 4 | Pending |
 | LIFE-07 | Phase 4 | Pending |
-| LIFE-08 | Phase 3 | Pending |
+| LIFE-08 | Phase 3 | Complete |
 | SUB-01 | Phase 4 | Pending |
 | SUB-02 | Phase 4 | Pending |
 | SUB-03 | Phase 4 | Pending |
