@@ -169,7 +169,38 @@ Plans:
   4. After 24 hours of PR inactivity the agent gets one check-in message offering `pr-relay keep <PR link>` or `unsub`. `keep` resets the clock, and after 7 days of inactivity the subscription is cancelled with one final "expired" message. Both thresholds are configurable.
   5. After a merged or closed notification is delivered, the subscription is removed automatically.
 
-**Plans**: TBD
+**Plans:** 12 plans
+
+Plans:
+**Wave 1**
+
+- [ ] 04-01-PLAN.md — Pure core: ParsePRLink, lifecycle event types, D-12 lines, [lifecycle] config
+- [ ] 04-02-PLAN.md — Phase 3 hardening (IN-01/02/03, WR-09), herdr env detection, Manager.Sockets()
+- [ ] 04-03-PLAN.md — internal/ctl control protocol (version gate) and socket/log paths
+- [ ] 04-04-PLAN.md — Log-rotation dependency gate (human checkpoint) and daemon log
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 04-05-PLAN.md — Store v3, closed mask bypass, ack-driven removal, D-11 clock reset, keep
+- [ ] 04-06-PLAN.md — internal/autostart: spawn lock, Setsid re-exec, mismatch restart, stop
+- [ ] 04-07-PLAN.md — CLI --events parsing and golden-tested text formatters
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [ ] 04-08-PLAN.md — Engine SubscribeVerified, UnsubscribePane, Reset, expired revive
+- [ ] 04-09-PLAN.md — Lifecycle tick (repeating check-in, expiry) with startup grace
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
+- [ ] 04-10-PLAN.md — Daemon host and control-method handlers
+
+**Wave 5** *(blocked on Wave 4 completion)*
+
+- [ ] 04-11-PLAN.md — Cobra commands: sub, unsub, keep, poll, ls, status, reset, daemon
+
+**Wave 6** *(blocked on Wave 5 completion)*
+
+- [ ] 04-12-PLAN.md — End-to-end tests for all five success criteria
 
 ### Phase 5: Packaging, Plugin & Agent Skill
 
@@ -192,5 +223,5 @@ Plans:
 | 1. Toolchain, Spikes & Pure Core | 9/9 | Complete   | 2026-11-01 |
 | 2. Durable State & GitHub Poller | 12/12 | Complete   | 2026-11-02 |
 | 3. herdr Client & Delivery | 12/12 | Complete   | 2026-11-04 |
-| 4. Daemon, Control Protocol & CLI | 0/TBD | Not started | - |
+| 4. Daemon, Control Protocol & CLI | 0/12 | Not started | - |
 | 5. Packaging, Plugin & Agent Skill | 0/TBD | Not started | - |
