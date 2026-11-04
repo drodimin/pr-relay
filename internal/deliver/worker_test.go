@@ -746,3 +746,58 @@ func TestWaitNotRunningRechecks(t *testing.T) {
 		h.wantPrompts(0)
 	})
 }
+
+func TestNeverPromptNotReady(t *testing.T) {
+	neverPrompt(t, herdrtest.PaneState{Agent: "claude", Status: herdr.StatusIdle, NotReady: true})
+}
+
+func TestNotReadyThenReadyDelivers(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		h := newHarness(t)
+		h.pane(herdrtest.PaneState{Agent: "claude", Status: herdr.StatusIdle, NotReady: true})
+		s := h.sub(testPane, "", "claude", prN(1))
+		h.eng.addPending(s.ID, comments(1, 1)...)
+		h.start()
+		h.advance(5 * time.Minute)
+		h.wantPrompts(0)
+		h.pane(herdrtest.PaneState{Agent: "claude", Status: herdr.StatusIdle})
+		h.w.poke()
+		synctest.Wait()
+		h.advance(11 * time.Second)
+		h.wantPrompts(1)
+		if c := h.eng.cancelLog(); len(c) != 0 {
+			t.Errorf("cancels = %v", c)
+		}
+	})
+}
+
+func TestIdentityHeldWhileUnsettled(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		h := newHarness(t)
+		h.pane(herdrtest.PaneState{Agent: "claude", Session: "s2", Status: herdr.StatusIdle, LaunchPending: true})
+		s := h.sub(testPane, "s1", "claude", prN(1))
+		h.eng.addPending(s.ID, comments(1, 1)...)
+		h.start()
+		h.advance(5 * time.Minute)
+		// Mid-relaunch: herdr has not classified the new occupant yet.
+		h.pane(herdrtest.PaneState{Agent: "codex", Session: "s2", Status: herdr.StatusUnknown})
+		h.w.poke()
+		synctest.Wait()
+		h.advance(5 * time.Minute)
+		h.wantPrompts(0)
+		if c := h.eng.cancelLog(); len(c) != 0 {
+			t.Fatalf("cancelled on an unsettled snapshot: %v", c)
+		}
+		if n := h.eng.pendingCount(s.ID); n != 1 {
+			t.Fatalf("pending = %d, want 1", n)
+		}
+		h.pane(herdrtest.PaneState{Agent: "claude", Session: "s1", Status: herdr.StatusIdle})
+		h.w.poke()
+		synctest.Wait()
+		h.advance(11 * time.Second)
+		h.wantPrompts(1)
+		if c := h.eng.cancelLog(); len(c) != 0 {
+			t.Errorf("cancels = %v", c)
+		}
+	})
+}
