@@ -494,7 +494,10 @@ func TestSupersededSilentAck(t *testing.T) {
 	})
 }
 
-func TestPromptTimeoutCountsDelivered(t *testing.T) {
+// A wait-for-working timeout is not delivery: a just-relaunched agent can
+// report idle and drop the text (SC3, CR-01). The update stays queued and is
+// re-sent.
+func TestPromptTimeoutKeepsQueued(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		h := newHarness(t)
 		h.pane(herdrtest.PaneState{Agent: "claude", Status: herdr.StatusIdle})
@@ -503,19 +506,150 @@ func TestPromptTimeoutCountsDelivered(t *testing.T) {
 		h.srv.FailNext("agent.prompt", herdr.CodeTimeout)
 		h.start()
 		h.advance(11 * time.Second)
+		if a := h.eng.ackLog(); len(a) != 0 {
+			t.Fatalf("acked after a working-wait timeout: %v", a)
+		}
+		if n := h.eng.pendingCount(s.ID); n != 1 {
+			t.Errorf("pending = %d, want 1", n)
+		}
+		logs := h.logs.String()
+		if !strings.Contains(logs, "level=WARN") || !strings.Contains(logs, "kept queued") {
+			t.Errorf("no kept-queued warning in logs:\n%s", logs)
+		}
+		h.advance(2 * time.Minute)
+		if n := h.srv.CallCount("agent.prompt"); n != 2 {
+			t.Errorf("agent.prompt calls = %d, want 2 (re-sent)", n)
+		}
+		h.wantPrompts(1)
 		if a := h.eng.ackLog(); len(a) != 1 {
-			t.Fatalf("acks = %v", a)
+			t.Errorf("acks = %v", a)
 		}
 		if n := h.eng.pendingCount(s.ID); n != 0 {
 			t.Errorf("pending = %d", n)
 		}
-		logs := h.logs.String()
-		if !strings.Contains(logs, "level=WARN") || !strings.Contains(logs, "working not observed") {
-			t.Errorf("no timeout warning in logs:\n%s", logs)
+	})
+}
+
+// A completed turn after the unconfirmed prompt proves the agent took the
+// text: acked without a duplicate.
+func TestPromptTimeoutConfirmedByCompletion(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		h := newHarness(t)
+		h.pane(herdrtest.PaneState{Agent: "claude", Status: herdr.StatusIdle})
+		s := h.sub(testPane, "", "claude", prN(1))
+		h.eng.addPending(s.ID, comments(1, 1)...)
+		h.srv.FailNext("agent.prompt", herdr.CodeTimeout)
+		h.start()
+		h.advance(11 * time.Second)
+		if a := h.eng.ackLog(); len(a) != 0 {
+			t.Fatalf("acks = %v", a)
 		}
-		h.advance(time.Minute)
+		one := uint64(1)
+		h.pane(herdrtest.PaneState{Agent: "claude", Status: herdr.StatusIdle, CompletionSeq: &one})
+		h.w.poke()
+		synctest.Wait()
+		h.advance(15 * time.Second)
+		if a := h.eng.ackLog(); len(a) != 1 || a[0][s.ID] != 1 {
+			t.Errorf("acks = %v", a)
+		}
+		if n := h.eng.pendingCount(s.ID); n != 0 {
+			t.Errorf("pending = %d", n)
+		}
 		if n := h.srv.CallCount("agent.prompt"); n != 1 {
-			t.Errorf("agent.prompt calls = %d (re-sent after timeout)", n)
+			t.Errorf("agent.prompt calls = %d, want 1 (no duplicate)", n)
+		}
+		if !strings.Contains(h.logs.String(), "confirmed by completed turn") {
+			t.Errorf("no confirmation log:\n%s", h.logs.String())
+		}
+	})
+}
+
+// state_change_seq moves during a relaunch too, so it never confirms.
+func TestPromptTimeoutStateSeqDoesNotConfirm(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		h := newHarness(t)
+		h.pane(herdrtest.PaneState{Agent: "claude", Status: herdr.StatusIdle})
+		s := h.sub(testPane, "", "claude", prN(1))
+		h.eng.addPending(s.ID, comments(1, 1)...)
+		h.srv.FailNext("agent.prompt", herdr.CodeTimeout)
+		h.start()
+		h.advance(11 * time.Second)
+		h.srv.SetStatus(testPane, herdr.StatusIdle)
+		h.w.poke()
+		synctest.Wait()
+		if a := h.eng.ackLog(); len(a) != 0 {
+			t.Fatalf("acked on a state_change_seq move: %v", a)
+		}
+		h.advance(2 * time.Minute)
+		if n := h.srv.CallCount("agent.prompt"); n != 2 {
+			t.Errorf("agent.prompt calls = %d, want 2 (re-sent, not acked)", n)
+		}
+	})
+}
+
+// Repeated unconfirmed prompts back off exponentially from Recheck (60s).
+func TestPromptTimeoutBackoff(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		h := newHarness(t)
+		h.pane(herdrtest.PaneState{Agent: "claude", Status: herdr.StatusIdle})
+		s := h.sub(testPane, "", "claude", prN(1))
+		h.eng.addPending(s.ID, comments(1, 1)...)
+		for range 3 {
+			h.srv.FailNext("agent.prompt", herdr.CodeTimeout)
+		}
+		h.start()
+		// Prompts at ~t=10, then >=60s, >=120s and >=240s apart.
+		h.advance(11 * time.Second)
+		if n := h.srv.CallCount("agent.prompt"); n != 1 {
+			t.Fatalf("t=11 agent.prompt calls = %d", n)
+		}
+		h.advance(58 * time.Second) // t=69
+		if n := h.srv.CallCount("agent.prompt"); n != 1 {
+			t.Errorf("t=69 agent.prompt calls = %d, want 1", n)
+		}
+		h.advance(130 * time.Second) // t=199
+		if n := h.srv.CallCount("agent.prompt"); n > 2 {
+			t.Errorf("t=199 agent.prompt calls = %d, want <= 2", n)
+		}
+		h.advance(250 * time.Second) // t=449
+		if n := h.srv.CallCount("agent.prompt"); n > 3 {
+			t.Errorf("t=449 agent.prompt calls = %d, want <= 3", n)
+		}
+		h.advance(151 * time.Second) // t=600
+		if n := h.srv.CallCount("agent.prompt"); n != 4 {
+			t.Errorf("agent.prompt calls = %d, want 4", n)
+		}
+		h.wantPrompts(1)
+		if n := h.eng.pendingCount(s.ID); n != 0 {
+			t.Errorf("pending = %d", n)
+		}
+	})
+}
+
+// A group whose PR cannot be rendered is kept queued, never silently acked
+// (IN-04).
+func TestInvalidRefKeepsQueued(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		h := newHarness(t)
+		h.pane(herdrtest.PaneState{Agent: "claude", Status: herdr.StatusIdle})
+		s := store.Subscription{ID: store.SubID(testSock, testPane, "not-a-key"), PR: "not-a-key",
+			HerdrSocket: testSock, PaneID: testPane, AgentKind: "claude"}
+		h.eng.addSub(s)
+		h.eng.addPending(s.ID, comments(1, 2)...)
+		h.start()
+		h.advance(5 * time.Minute)
+		h.wantPrompts(0)
+		if a := h.eng.ackLog(); len(a) != 0 {
+			t.Errorf("acks = %v", a)
+		}
+		if n := h.eng.pendingCount(s.ID); n != 2 {
+			t.Errorf("pending = %d, want 2", n)
+		}
+		if !strings.Contains(h.logs.String(), "level=ERROR") {
+			t.Errorf("no error log:\n%s", h.logs.String())
+		}
+		if n := len(h.srv.Calls()); n > 100 {
+			t.Errorf("herdr calls in 5m = %d (hot loop?)", n)
 		}
 	})
 }
@@ -744,5 +878,60 @@ func TestWaitNotRunningRechecks(t *testing.T) {
 			t.Error("worker still running with no subscriptions")
 		}
 		h.wantPrompts(0)
+	})
+}
+
+func TestNeverPromptNotReady(t *testing.T) {
+	neverPrompt(t, herdrtest.PaneState{Agent: "claude", Status: herdr.StatusIdle, NotReady: true})
+}
+
+func TestNotReadyThenReadyDelivers(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		h := newHarness(t)
+		h.pane(herdrtest.PaneState{Agent: "claude", Status: herdr.StatusIdle, NotReady: true})
+		s := h.sub(testPane, "", "claude", prN(1))
+		h.eng.addPending(s.ID, comments(1, 1)...)
+		h.start()
+		h.advance(5 * time.Minute)
+		h.wantPrompts(0)
+		h.pane(herdrtest.PaneState{Agent: "claude", Status: herdr.StatusIdle})
+		h.w.poke()
+		synctest.Wait()
+		h.advance(11 * time.Second)
+		h.wantPrompts(1)
+		if c := h.eng.cancelLog(); len(c) != 0 {
+			t.Errorf("cancels = %v", c)
+		}
+	})
+}
+
+func TestIdentityHeldWhileUnsettled(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		h := newHarness(t)
+		h.pane(herdrtest.PaneState{Agent: "claude", Session: "s2", Status: herdr.StatusIdle, LaunchPending: true})
+		s := h.sub(testPane, "s1", "claude", prN(1))
+		h.eng.addPending(s.ID, comments(1, 1)...)
+		h.start()
+		h.advance(5 * time.Minute)
+		// Mid-relaunch: herdr has not classified the new occupant yet.
+		h.pane(herdrtest.PaneState{Agent: "codex", Session: "s2", Status: herdr.StatusUnknown})
+		h.w.poke()
+		synctest.Wait()
+		h.advance(5 * time.Minute)
+		h.wantPrompts(0)
+		if c := h.eng.cancelLog(); len(c) != 0 {
+			t.Fatalf("cancelled on an unsettled snapshot: %v", c)
+		}
+		if n := h.eng.pendingCount(s.ID); n != 1 {
+			t.Fatalf("pending = %d, want 1", n)
+		}
+		h.pane(herdrtest.PaneState{Agent: "claude", Session: "s1", Status: herdr.StatusIdle})
+		h.w.poke()
+		synctest.Wait()
+		h.advance(11 * time.Second)
+		h.wantPrompts(1)
+		if c := h.eng.cancelLog(); len(c) != 0 {
+			t.Errorf("cancels = %v", c)
+		}
 	})
 }

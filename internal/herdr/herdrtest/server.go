@@ -54,7 +54,11 @@ type PaneState struct {
 	StateSeq      uint64
 	CompletionSeq *uint64
 	LaunchPending bool
-	TerminalID    string
+	// NotReady makes herdr report interactive_ready=false. A ready pane
+	// carries no interactive_ready key, as herdr 0.9.5 does for
+	// long-running agents.
+	NotReady   bool
+	TerminalID string
 }
 
 // Prompt is one recorded, successful agent.prompt.
@@ -686,20 +690,25 @@ func agentJSON(p *pane) map[string]any {
 	if p.CompletionSeq != nil {
 		completion = *p.CompletionSeq
 	}
-	return map[string]any{
-		"pane_id":           p.ID,
-		"tab_id":            p.TabID,
-		"workspace_id":      p.WorkspaceID,
-		"agent":             p.Agent,
-		"agent_session":     sessionJSON(p.PaneState),
-		"agent_status":      status(p.PaneState),
-		"state_change_seq":  p.StateSeq,
-		"completion_seq":    completion,
-		"terminal_id":       p.TerminalID,
-		"focused":           false,
-		"launch_pending":    p.LaunchPending,
-		"interactive_ready": !p.LaunchPending,
+	m := map[string]any{
+		"pane_id":          p.ID,
+		"tab_id":           p.TabID,
+		"workspace_id":     p.WorkspaceID,
+		"agent":            p.Agent,
+		"agent_session":    sessionJSON(p.PaneState),
+		"agent_status":     status(p.PaneState),
+		"state_change_seq": p.StateSeq,
+		"completion_seq":   completion,
+		"terminal_id":      p.TerminalID,
+		"focused":          false,
+		"launch_pending":   p.LaunchPending,
 	}
+	// herdr 0.9.5 omits interactive_ready for ready long-running agents;
+	// only an explicit false means not ready.
+	if p.LaunchPending || p.NotReady {
+		m["interactive_ready"] = false
+	}
+	return m
 }
 
 func paneJSON(p *pane) map[string]any {
