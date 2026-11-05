@@ -7,6 +7,7 @@ import (
 	"io"
 	"io/fs"
 	"os"
+	"strings"
 	"syscall"
 	"time"
 
@@ -22,6 +23,12 @@ const (
 	postSpawnTimeout = time.Second            // hello after a spawn
 	lockRetry        = 25 * time.Millisecond
 )
+
+// AlreadyRunningMsg is the startup error a spawned daemon reports when
+// another daemon holds the socket lock. It must equal
+// daemon.ErrAlreadyRunning.Error(); autostart cannot import daemon (daemon
+// imports autostart), so a guard test in cmd/pr-relay keeps them in step.
+const AlreadyRunningMsg = "daemon: already running"
 
 // Options configures Connect, Call, Stop and Restart.
 type Options struct {
@@ -112,15 +119,30 @@ func ensureUp(ctx context.Context, o Options, c *ctl.Client, socket string) erro
 		return reachErr(socket, err)
 	}
 	spawnErr := spawn(ctx, o.Exe, o.Args, o.Env, o.SpawnTimeout)
-	if _, err := hello(ctx, c, postSpawnTimeout); err != nil {
-		if spawnErr != nil {
-			return spawnErr
-		}
-		return reachErr(socket, err)
+	_, err := hello(ctx, c, postSpawnTimeout)
+	if err == nil {
+		// A daemon answers: either ours, or one that won the socket lock
+		// while ours lost it and exited.
+		return nil
 	}
-	// A daemon answers: either ours, or one that won the socket lock while
-	// ours lost it and exited.
-	return nil
+	// Ours lost the socket lock, or came up and nobody answers: an old
+	// daemon is in its shutdown window (socket unlinked, lock still held).
+	// Wait for it to release the lock and spawn exactly once more (WR-03).
+	// A genuine startup error is returned as is, never retried.
+	alreadyRunning := spawnErr != nil && strings.Contains(spawnErr.Error(), AlreadyRunningMsg)
+	if alreadyRunning || (spawnErr == nil && isDown(err)) {
+		if werr := waitExited(ctx, socket, o.ExitTimeout); werr != nil {
+			return werr
+		}
+		spawnErr = spawn(ctx, o.Exe, o.Args, o.Env, o.SpawnTimeout)
+		if _, err = hello(ctx, c, postSpawnTimeout); err == nil {
+			return nil
+		}
+	}
+	if spawnErr != nil {
+		return spawnErr
+	}
+	return reachErr(socket, err)
 }
 
 // Call connects (spawning if needed) and sends one request. When the daemon
