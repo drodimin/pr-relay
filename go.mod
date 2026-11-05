@@ -8,6 +8,7 @@ require (
 	github.com/gofrs/flock v0.13.1
 	github.com/spf13/cobra v1.10.2
 	golang.org/x/text v0.43.0
+	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 )
 
 require (
