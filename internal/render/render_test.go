@@ -97,6 +97,60 @@ func TestGolden(t *testing.T) {
 	testutil.Golden(t, "testdata/lines.golden", []byte(strings.Join(lines, "\n")+"\n"))
 }
 
+func TestLifecycleLines(t *testing.T) {
+	ref := model.PRRef{Owner: "o", Repo: "r", Number: 12}
+	ev := []model.Event{
+		{Type: model.EventCheckin, Key: "checkin:1", IdleSecs: 86400},
+		{Type: model.EventCheckin, Key: "checkin:2", IdleSecs: 604800},
+		{Type: model.EventCheckin, Key: "checkin:3", IdleSecs: 129600},
+		{Type: model.EventCheckin, Key: "checkin:4", IdleSecs: 5400},
+		{Type: model.EventExpired, Key: "expired:1", IdleSecs: 604800},
+		{Type: model.EventExpired, Key: "expired:2", IdleSecs: 172800},
+	}
+	lines := Lines(ref, ev)
+	if len(lines) != len(ev) {
+		t.Fatalf("got %d lines, want %d", len(lines), len(ev))
+	}
+	want0 := "[pr-relay] o/r#12 check-in: no activity for 24h. still needed? keep: pr-relay keep https://github.com/o/r/pull/12 | drop: pr-relay unsub https://github.com/o/r/pull/12"
+	want4 := "[pr-relay] o/r#12 expired: no activity for 7d, subscription removed. re-subscribe: pr-relay sub https://github.com/o/r/pull/12"
+	if lines[0] != want0 {
+		t.Errorf("check-in line:\n got %q\nwant %q", lines[0], want0)
+	}
+	if lines[4] != want4 {
+		t.Errorf("expired line:\n got %q\nwant %q", lines[4], want4)
+	}
+	testutil.Golden(t, "testdata/lifecycle.golden", []byte(strings.Join(lines, "\n")+"\n"))
+}
+
+func TestHumanDuration(t *testing.T) {
+	for secs, want := range map[int64]string{86400: "24h", 604800: "7d", 129600: "36h", 5400: "90m", 172800: "2d", 3600: "1h"} {
+		if got := human(idle(model.Event{IdleSecs: secs})); got != want {
+			t.Errorf("human(%ds) = %q, want %q", secs, got, want)
+		}
+	}
+}
+
+func TestLifecycleLinesFit(t *testing.T) {
+	long := strings.Repeat("a", 100)
+	ref := model.PRRef{Owner: long, Repo: long, Number: 123456789}
+	for _, et := range []model.EventType{model.EventCheckin, model.EventExpired} {
+		lines := Lines(ref, []model.Event{{Type: et, IdleSecs: 604800}})
+		if len(lines) != 1 {
+			t.Fatalf("%s: got %d lines, want 1", et, len(lines))
+		}
+		l := lines[0]
+		if len(l) > MaxLineBytes {
+			t.Errorf("%s: line is %d bytes, cap %d", et, len(l), MaxLineBytes)
+		}
+		if !fits(l) {
+			t.Errorf("%s: line does not fit: %q", et, l)
+		}
+		if !strings.HasPrefix(l, "[pr-relay] "+ref.String()+" ") || !strings.HasSuffix(l, ref.URL()) {
+			t.Errorf("%s: line %q lacks the locked prefix or the PR URL", et, l)
+		}
+	}
+}
+
 func TestEachAligned(t *testing.T) {
 	ev := []model.Event{
 		{Type: model.EventConflict, Conflicting: true},
