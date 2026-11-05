@@ -3,6 +3,7 @@ package model
 import (
 	"encoding/json"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 )
@@ -168,6 +169,93 @@ func roundTrip[T any](t *testing.T, v T) {
 	if !reflect.DeepEqual(got, v) {
 		t.Errorf("round trip mismatch:\n got %+v\nwant %+v", got, v)
 	}
+}
+
+func TestParsePRLink(t *testing.T) {
+	want := PRRef{"o", "r", 12}
+	ok := []string{
+		"https://github.com/o/r/pull/12",
+		"http://github.com/o/r/pull/12",
+		"github.com/o/r/pull/12",
+		"https://www.github.com/o/r/pull/12",
+		"https://GitHub.com/o/r/pull/12",
+		"https://github.com/o/r/pull/12/",
+		"https://github.com/o/r/pull/12/files",
+		"https://github.com/o/r/pull/12/commits",
+		"https://github.com/o/r/pull/12/checks",
+		"https://github.com/o/r/pull/12#issuecomment-1",
+		"https://github.com/o/r/pull/12?w=1",
+		"  https://github.com/o/r/pull/12  ",
+	}
+	for _, in := range ok {
+		got, err := ParsePRLink(in)
+		if err != nil {
+			t.Errorf("ParsePRLink(%q) error: %v", in, err)
+			continue
+		}
+		if got != want {
+			t.Errorf("ParsePRLink(%q) = %+v, want %+v", in, got, want)
+		}
+		strict, err := ParsePRURL(got.URL())
+		if err != nil || strict != got {
+			t.Errorf("ParsePRLink(%q) = %+v disagrees with ParsePRURL(%q) = %+v, %v", in, got, got.URL(), strict, err)
+		}
+	}
+
+	msgs := []struct{ in, sub string }{
+		{"https://gitlab.com/o/r/pull/1", "only github.com is supported"},
+		{"https://github.example.com/o/r/pull/1", "only github.com is supported"},
+		{"https://github.com:8443/o/r/pull/1", "only github.com is supported"},
+		{"https://github.com/o/r/issues/12", "is an issue, not a pull request"},
+		{"https://github.com/o/r", "is a repository; pr-relay watches single pull requests"},
+		{"o/r", "is a repository; pr-relay watches single pull requests"},
+		{"o/r#12", "not a link"},
+	}
+	for _, tc := range msgs {
+		_, err := ParsePRLink(tc.in)
+		if err == nil {
+			t.Errorf("ParsePRLink(%q) accepted, want error containing %q", tc.in, tc.sub)
+			continue
+		}
+		if !strings.Contains(err.Error(), tc.sub) {
+			t.Errorf("ParsePRLink(%q) error %q, want it to contain %q", tc.in, err, tc.sub)
+		}
+	}
+
+	reject := []string{
+		"https://github.com/o/r/pull/abc",
+		"https://github.com/o/r/pull/0",
+		"https://github.com/o/r/pull/12/other",
+		"https://user@github.com/o/r/pull/12",
+		"https://github.com/../r/pull/12",
+		"https://github.com//r/pull/12",
+		"ftp://github.com/o/r/pull/12",
+		"",
+		"   ",
+	}
+	for _, in := range reject {
+		if got, err := ParsePRLink(in); err == nil {
+			t.Errorf("ParsePRLink(%q) = %+v, want error", in, got)
+		}
+	}
+}
+
+func TestLifecycleTypes(t *testing.T) {
+	for _, et := range AllEventTypes() {
+		if et == EventCheckin || et == EventExpired {
+			t.Errorf("AllEventTypes() contains lifecycle type %q", et)
+		}
+		if et.IsLifecycle() {
+			t.Errorf("%s.IsLifecycle() = true, want false", et)
+		}
+	}
+	if !EventCheckin.IsLifecycle() || !EventExpired.IsLifecycle() {
+		t.Error("lifecycle types must report IsLifecycle() == true")
+	}
+	if EventCheckin.Rank() != 99 || EventExpired.Rank() != 99 {
+		t.Errorf("lifecycle Rank() = %d/%d, want 99", EventCheckin.Rank(), EventExpired.Rank())
+	}
+	roundTrip(t, Event{Type: EventCheckin, Key: "k", IdleSecs: 86400})
 }
 
 func TestJSONRoundTrip(t *testing.T) {
