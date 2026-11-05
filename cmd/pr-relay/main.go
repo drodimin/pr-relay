@@ -31,13 +31,15 @@ func newRootCmd() *cobra.Command {
 			fmt.Fprintln(cmd.OutOrStdout(), versionString())
 		},
 	})
+	root.AddCommand(newSubCmd(), newUnsubCmd(), newKeepCmd(), newPollCmd(), newLsCmd(),
+		newStatusCmd(), newResetCmd(), newDaemonCmd())
 	root.AddCommand(newDevCmd())
 	return root
 }
 
 func main() {
 	if err := newRootCmd().Execute(); err != nil {
-		fmt.Fprintf(os.Stderr, "pr-relay: %v\n", err)
+		fmt.Fprintf(os.Stderr, "pr-relay: %v\n", cliError(err))
 		os.Exit(1)
 	}
 }
