@@ -38,7 +38,7 @@ type Options struct {
 	Config  config.Config
 	Logger  *slog.Logger
 	// OnCommit, when set, is called after every committed poll, outside
-	// the engine's locks (pollMu included), so it may call PollNow. Calls
+	// the engine's locks (the poll lock included), so it may call PollNow. Calls
 	// from concurrent polls are not serialized: the callback must do its
 	// own locking.
 	OnCommit func(CommitReport)
@@ -191,8 +191,9 @@ func (e *RateLimitedError) Error() string {
 //
 // Polling iterates PR records, never subscriptions: a PR is fetched once per
 // poll however many panes watch it (DMN-02). Polls run one at a time
-// (pollMu); the network call holds no lock, so Subscribe and friends never
-// wait on GitHub. A result whose record Gen changed during the call is
+// (pollSem, a one-slot semaphore whose wait honours the caller's context,
+// review CR-01); the network call holds no lock, so Subscribe and friends
+// never wait on GitHub. A result whose record Gen changed during the call is
 // dropped (pitfall 8).
 //
 // Activity (D-12, assumption A6) is PR-level and ignores subscriber masks:
@@ -204,8 +205,10 @@ func (e *RateLimitedError) Error() string {
 // scheduler is woken; Phase 4's SUB-07 calls PollNow with a timeout when the
 // caller wants the first result synchronously.
 type Engine struct {
-	mu     sync.Mutex
-	pollMu sync.Mutex
+	mu sync.Mutex
+	// pollSem serializes polls and subscribe probes. Acquire it with
+	// lockPoll, which gives up when the caller's context ends.
+	pollSem chan struct{}
 
 	state   *store.State
 	saver   Saver
@@ -258,6 +261,7 @@ func New(o Options) (*Engine, error) {
 		cfg:         o.Config,
 		log:         o.Logger,
 		stretch:     1,
+		pollSem:     make(chan struct{}, 1),
 		wake:        make(chan struct{}, 1),
 		pendingWake: make(chan struct{}, 1),
 		reach:       map[PaneRef]time.Time{},
@@ -431,7 +435,8 @@ func (e *Engine) subInfoLocked(req SubRequest, id string, created bool, now time
 
 // subscribeIn creates or updates the subscription of (HerdrSocket, PaneID,
 // PR) in next, whose PR record must already exist. An existing subscription
-// has its mask replaced, its pending queue re-filtered and its clock reset.
+// has its mask replaced, its pending queue re-filtered, its clock reset and
+// any pending check-in answered, like keep (review CR-03).
 // An expired-ending one is revived: its ending marker and check-in are
 // cleared and its queued expired and check-in events dropped (D-02, D-14).
 // A closed-ending one cannot be revived and returns a pr_closed
@@ -455,6 +460,10 @@ func (e *Engine) subscribeIn(next *store.State, req SubRequest, mask []model.Eve
 			}
 			sub.Pending = kept
 		}
+		// Re-subscribing answers a pending check-in exactly like keep
+		// (review CR-03), so the agent never gets a stale "still needed?".
+		sub.CheckinAt = time.Time{}
+		sub.Pending = withoutCheckins(sub.Pending)
 		sub.Events = mask
 		sub.AgentSession = req.AgentSession
 		sub.AgentKind = req.AgentKind
@@ -934,19 +943,37 @@ func errClass(err error) string {
 // result in one Save. Polls run one at a time. keys must fit one batch
 // (ghquery.MaxBatch); unknown keys are skipped.
 //
-// OnCommit runs after pollMu is released (review WR-03), so a callback may
-// call PollNow without deadlocking and does not stall other polls.
+// The wait for the poll lock is bounded by ctx (review CR-01). OnCommit
+// runs after the lock is released (review WR-03), so a callback may call
+// PollNow without deadlocking and does not stall other polls.
 func (e *Engine) pollRefs(ctx context.Context, keys []string, forced bool) ([]PollResult, error) {
-	e.pollMu.Lock()
+	if err := e.lockPoll(ctx); err != nil {
+		return nil, err
+	}
 	results, report, err := e.pollRefsLocked(ctx, keys, forced)
-	e.pollMu.Unlock()
+	e.unlockPoll()
 	if err == nil && report != nil && e.onCommit != nil {
 		e.onCommit(*report)
 	}
 	return results, err
 }
 
-// pollRefsLocked is pollRefs without the callback. The caller holds pollMu.
+// lockPoll acquires the poll lock, or returns ctx.Err() if ctx ends first
+// (review CR-01). A caller that got nil must call unlockPoll.
+func (e *Engine) lockPoll(ctx context.Context) error {
+	select {
+	case e.pollSem <- struct{}{}:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+// unlockPoll releases the poll lock taken by lockPoll.
+func (e *Engine) unlockPoll() { <-e.pollSem }
+
+// pollRefsLocked is pollRefs without the callback. The caller holds the
+// poll lock.
 // The report is nil when nothing was committed.
 func (e *Engine) pollRefsLocked(ctx context.Context, keys []string, forced bool) ([]PollResult, *CommitReport, error) {
 	if len(keys) > ghquery.MaxBatch {
