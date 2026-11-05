@@ -22,8 +22,9 @@ import (
 	"github.com/drodimin/pr-relay/internal/model"
 )
 
-// binPath is the pr-relay binary built once by TestMain.
-var binPath string
+// binPath is the pr-relay binary built once by TestMain. binOld is the same
+// source built as version 0.0.1-old, standing in for an older release.
+var binPath, binOld string
 
 func TestMain(m *testing.M) {
 	dir, err := os.MkdirTemp("", "pr-relay-bin-")
@@ -35,6 +36,13 @@ func TestMain(m *testing.M) {
 	out, err := exec.Command("go", "build", "-o", binPath, ".").CombinedOutput()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "build pr-relay: %v\n%s", err, out)
+		_ = os.RemoveAll(dir)
+		os.Exit(1)
+	}
+	binOld = filepath.Join(dir, "pr-relay-old")
+	out, err = exec.Command("go", "build", "-ldflags", "-X main.version=0.0.1-old", "-o", binOld, ".").CombinedOutput()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "build old pr-relay: %v\n%s", err, out)
 		_ = os.RemoveAll(dir)
 		os.Exit(1)
 	}
@@ -74,7 +82,10 @@ func newHarness(t *testing.T) *harness {
 func (h *harness) env() []string {
 	var env []string
 	for _, kv := range os.Environ() {
-		if strings.HasPrefix(kv, "GH_") || strings.HasPrefix(kv, "GITHUB_") || strings.HasPrefix(kv, "PR_RELAY_") {
+		// HERDR_* and XDG_RUNTIME_DIR are dropped too: tests may run inside
+		// a real herdr pane and must never reach it (Pitfall 2).
+		if strings.HasPrefix(kv, "GH_") || strings.HasPrefix(kv, "GITHUB_") || strings.HasPrefix(kv, "PR_RELAY_") ||
+			strings.HasPrefix(kv, "HERDR_") || strings.HasPrefix(kv, "XDG_RUNTIME_DIR=") {
 			continue
 		}
 		env = append(env, kv)
