@@ -25,6 +25,9 @@ const (
 	envFake        = "AUTOSTART_FAKE_DAEMON"
 	envFakeVersion = "AUTOSTART_FAKE_VERSION"
 	envFakeFail    = "AUTOSTART_FAKE_FAIL"
+	// envFakeLinger makes the fake hold its socket lock for this long
+	// (a time.Duration string) after unlinking the socket on shutdown.
+	envFakeLinger = "AUTOSTART_FAKE_LINGER"
 )
 
 func TestMain(m *testing.M) {
@@ -54,7 +57,9 @@ func fakeDaemon() int {
 		return 1
 	}
 	if !ok {
-		return 0 // another daemon owns the socket
+		// Another daemon owns the socket; report it like the real daemon.
+		SignalReady(errors.New(AlreadyRunningMsg))
+		return 0
 	}
 	_ = os.Remove(socket)
 	ln, err := net.Listen("unix", socket)
@@ -85,6 +90,9 @@ func fakeDaemon() int {
 	}
 	_ = srv.Close(time.Second)
 	_ = os.Remove(socket)
+	if d, err := time.ParseDuration(os.Getenv(envFakeLinger)); err == nil && d > 0 {
+		time.Sleep(d) // shutdown window: socket gone, lock still held
+	}
 	_ = lk.Unlock()
 	_ = lk.Close()
 	return 0
@@ -371,5 +379,46 @@ func TestHelloNeverAnswers(t *testing.T) {
 	}
 	if strings.Contains(msg, "nonexistent") {
 		t.Fatalf("Connect err = %q, want no spawn attempt", msg)
+	}
+}
+
+func TestConnectDuringShutdown(t *testing.T) {
+	o := setup(t, "0.4.0", "0.4.0")
+	o.Env = fakeEnv("0.4.0", envFakeLinger+"=800ms")
+	ctx := context.Background()
+	c, err := Connect(ctx, o)
+	if err != nil {
+		t.Fatalf("Connect A: %v", err)
+	}
+	pidA := status(t, c).PID
+
+	// Ask A to shut down without waiting for it to exit.
+	if _, err := c.Call(ctx, ctl.MethodShutdown, nil, nil); err != nil && !ctl.IsUnreachable(err) {
+		t.Fatalf("shutdown A: %v", err)
+	}
+	deadline := time.Now().Add(3 * time.Second)
+	for {
+		if _, err := os.Lstat(c.Socket()); errors.Is(err, os.ErrNotExist) {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("socket still present 3s after shutdown")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	// A now lingers holding the socket lock.
+
+	c2, err := Connect(ctx, o)
+	if err != nil {
+		if strings.Contains(err.Error(), "already running") {
+			t.Fatalf("Connect during shutdown surfaced %q", err)
+		}
+		t.Fatalf("Connect during shutdown: %v", err)
+	}
+	if pidB := status(t, c2).PID; pidB == pidA || pidB == 0 {
+		t.Fatalf("daemon pid %d after shutdown window, want a fresh daemon (A was %d)", pidB, pidA)
+	}
+	if !reap(pidA) {
+		t.Fatalf("daemon A %d still alive", pidA)
 	}
 }
