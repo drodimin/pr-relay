@@ -435,7 +435,8 @@ func (e *Engine) subInfoLocked(req SubRequest, id string, created bool, now time
 
 // subscribeIn creates or updates the subscription of (HerdrSocket, PaneID,
 // PR) in next, whose PR record must already exist. An existing subscription
-// has its mask replaced, its pending queue re-filtered and its clock reset.
+// has its mask replaced, its pending queue re-filtered, its clock reset and
+// any pending check-in answered, like keep (review CR-03).
 // An expired-ending one is revived: its ending marker and check-in are
 // cleared and its queued expired and check-in events dropped (D-02, D-14).
 // A closed-ending one cannot be revived and returns a pr_closed
@@ -459,6 +460,10 @@ func (e *Engine) subscribeIn(next *store.State, req SubRequest, mask []model.Eve
 			}
 			sub.Pending = kept
 		}
+		// Re-subscribing answers a pending check-in exactly like keep
+		// (review CR-03), so the agent never gets a stale "still needed?".
+		sub.CheckinAt = time.Time{}
+		sub.Pending = withoutCheckins(sub.Pending)
 		sub.Events = mask
 		sub.AgentSession = req.AgentSession
 		sub.AgentKind = req.AgentKind
