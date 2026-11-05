@@ -169,7 +169,7 @@ Plans:
   4. After 24 hours of PR inactivity the agent gets one check-in message offering `pr-relay keep <PR link>` or `unsub`. `keep` resets the clock, and after 7 days of inactivity the subscription is cancelled with one final "expired" message. Both thresholds are configurable.
   5. After a merged or closed notification is delivered, the subscription is removed automatically.
 
-**Plans:** 7/12 plans executed
+**Plans:** 9/12 plans executed
 
 Plans:
 **Wave 1**
@@ -187,8 +187,8 @@ Plans:
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 04-08-PLAN.md — Engine SubscribeVerified, UnsubscribePane, Reset, expired revive
-- [ ] 04-09-PLAN.md — Lifecycle tick (repeating check-in, expiry) with startup grace
+- [x] 04-08-PLAN.md — Engine SubscribeVerified, UnsubscribePane, Reset, expired revive
+- [x] 04-09-PLAN.md — Lifecycle tick (repeating check-in, expiry) with startup grace
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
@@ -223,5 +223,5 @@ Plans:
 | 1. Toolchain, Spikes & Pure Core | 9/9 | Complete   | 2026-11-01 |
 | 2. Durable State & GitHub Poller | 12/12 | Complete   | 2026-11-02 |
 | 3. herdr Client & Delivery | 12/12 | Complete   | 2026-11-04 |
-| 4. Daemon, Control Protocol & CLI | 7/12 | In Progress|  |
+| 4. Daemon, Control Protocol & CLI | 9/12 | In Progress|  |
 | 5. Packaging, Plugin & Agent Skill | 0/TBD | Not started | - |
