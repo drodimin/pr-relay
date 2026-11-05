@@ -7,6 +7,7 @@ import (
 	"io"
 	"io/fs"
 	"os"
+	"strings"
 	"syscall"
 	"time"
 
@@ -22,6 +23,12 @@ const (
 	postSpawnTimeout = time.Second            // hello after a spawn
 	lockRetry        = 25 * time.Millisecond
 )
+
+// AlreadyRunningMsg is the startup error a spawned daemon reports when
+// another daemon holds the socket lock. It must equal
+// daemon.ErrAlreadyRunning.Error(); autostart cannot import daemon (daemon
+// imports autostart), so a guard test in cmd/pr-relay keeps them in step.
+const AlreadyRunningMsg = "daemon: already running"
 
 // Options configures Connect, Call, Stop and Restart.
 type Options struct {
@@ -86,7 +93,7 @@ func Connect(ctx context.Context, o Options) (*ctl.Client, error) {
 		return nil, err
 	}
 	c := ctl.NewClient(socket, o.Version, nil)
-	if _, err := hello(ctx, c, probeTimeout); err == nil {
+	if _, err := probe(ctx, c, socket); err == nil {
 		return c, nil
 	} else if !isDown(err) {
 		return nil, reachErr(socket, err)
@@ -106,21 +113,36 @@ func Connect(ctx context.Context, o Options) (*ctl.Client, error) {
 // ensureUp runs under the spawn lock: it spawns the daemon unless another
 // CLI already did, then proves it answers.
 func ensureUp(ctx context.Context, o Options, c *ctl.Client, socket string) error {
-	if _, err := hello(ctx, c, probeTimeout); err == nil {
+	if _, err := probe(ctx, c, socket); err == nil {
 		return nil
 	} else if !isDown(err) {
 		return reachErr(socket, err)
 	}
 	spawnErr := spawn(ctx, o.Exe, o.Args, o.Env, o.SpawnTimeout)
-	if _, err := hello(ctx, c, postSpawnTimeout); err != nil {
-		if spawnErr != nil {
-			return spawnErr
-		}
-		return reachErr(socket, err)
+	_, err := hello(ctx, c, postSpawnTimeout)
+	if err == nil {
+		// A daemon answers: either ours, or one that won the socket lock
+		// while ours lost it and exited.
+		return nil
 	}
-	// A daemon answers: either ours, or one that won the socket lock while
-	// ours lost it and exited.
-	return nil
+	// Ours lost the socket lock, or came up and nobody answers: an old
+	// daemon is in its shutdown window (socket unlinked, lock still held).
+	// Wait for it to release the lock and spawn exactly once more (WR-03).
+	// A genuine startup error is returned as is, never retried.
+	alreadyRunning := spawnErr != nil && strings.Contains(spawnErr.Error(), AlreadyRunningMsg)
+	if alreadyRunning || (spawnErr == nil && isDown(err)) {
+		if werr := waitExited(ctx, socket, o.ExitTimeout); werr != nil {
+			return werr
+		}
+		spawnErr = spawn(ctx, o.Exe, o.Args, o.Env, o.SpawnTimeout)
+		if _, err = hello(ctx, c, postSpawnTimeout); err == nil {
+			return nil
+		}
+	}
+	if spawnErr != nil {
+		return spawnErr
+	}
+	return reachErr(socket, err)
 }
 
 // Call connects (spawning if needed) and sends one request. When the daemon
@@ -268,6 +290,40 @@ func spawnLock(ctx context.Context, o Options) (func(), error) {
 		_ = lk.Unlock()
 		_ = lk.Close()
 	}, nil
+}
+
+// probeRetryDelays are the pauses before each longer hello retry in probe.
+var probeRetryDelays = []time.Duration{100 * time.Millisecond, 200 * time.Millisecond}
+
+// probe checks for a live daemon. A hello that times out means something is
+// listening but slow (a busy daemon), so probe retries twice with the longer
+// post-spawn timeout before giving up with a message naming the daemon log
+// (WR-08). Any other error, such as a missing or refused socket, is returned
+// unchanged so isDown still routes the caller to a spawn. The retries are
+// bounded, so a hung daemon costs at most about 2.6 s (T-05-07).
+func probe(ctx context.Context, c *ctl.Client, socket string) (ctl.Peer, error) {
+	p, err := hello(ctx, c, probeTimeout)
+	for _, d := range probeRetryDelays {
+		if err == nil || !isTimeout(err) || ctx.Err() != nil {
+			return p, err
+		}
+		select {
+		case <-ctx.Done():
+			return ctl.Peer{}, ctx.Err()
+		case <-time.After(d):
+		}
+		p, err = hello(ctx, c, postSpawnTimeout)
+	}
+	if err != nil && isTimeout(err) && ctx.Err() == nil {
+		return ctl.Peer{}, fmt.Errorf("daemon at %s is not answering (hello timed out); see %s: %w", socket, logHint(), err)
+	}
+	return p, err
+}
+
+// isTimeout reports whether a hello failed because its deadline passed. The
+// connection deadline equals the context deadline, so either can fire first.
+func isTimeout(err error) bool {
+	return errors.Is(err, context.DeadlineExceeded) || errors.Is(err, os.ErrDeadlineExceeded)
 }
 
 // hello probes the daemon with its own timeout.
