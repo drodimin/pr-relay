@@ -9,14 +9,14 @@
 
 ### Subscriptions (CLI)
 
-- [ ] **SUB-01**: Agent can subscribe to a single PR by passing its link, for example `pr-relay sub https://github.com/owner/repo/pull/N`. The command returns within a few seconds and never blocks waiting for events.
-- [ ] **SUB-09**: `sub` requires a PR link. Repo URLs, issue URLs, bare repo names and anything else that isn't a single github.com PR link are rejected with a clear error. pr-relay has no whole-repo subscriptions.
-- [ ] **SUB-02**: Agent can limit a subscription to specific event types with `--events <type,...>`. The default is all event types, and `--events` is the only selection option.
-- [ ] **SUB-03**: The CLI detects the calling herdr pane and session from the environment (`HERDR_PANE_ID`, `HERDR_SOCKET_PATH`). An explicit `--pane` override is accepted, and the command fails with a clear error when run outside herdr with no `--pane`.
+- [x] **SUB-01**: Agent can subscribe to a single PR by passing its link, for example `pr-relay sub https://github.com/owner/repo/pull/N`. The command returns within a few seconds and never blocks waiting for events.
+- [x] **SUB-09**: `sub` requires a PR link. Repo URLs, issue URLs, bare repo names and anything else that isn't a single github.com PR link are rejected with a clear error. pr-relay has no whole-repo subscriptions.
+- [x] **SUB-02**: Agent can limit a subscription to specific event types with `--events <type,...>`. The default is all event types, and `--events` is the only selection option.
+- [x] **SUB-03**: The CLI detects the calling herdr pane and session from the environment (`HERDR_PANE_ID`, `HERDR_SOCKET_PATH`). An explicit `--pane` override is accepted, and the command fails with a clear error when run outside herdr with no `--pane`.
 - [x] **SUB-04**: Re-subscribing the same pane to the same PR updates the existing subscription rather than duplicating it.
-- [ ] **SUB-05**: Agent can unsubscribe with `pr-relay unsub <PR link>`, or `--all` for every subscription of the calling pane.
-- [ ] **SUB-06**: User or agent can list active subscriptions with `pr-relay ls`. The listing shows each subscription's events, current polling rate, last activity, and expiry time.
-- [ ] **SUB-07**: `sub` validates that the PR exists and is accessible, and fails fast with a clear error otherwise.
+- [x] **SUB-05**: Agent can unsubscribe with `pr-relay unsub <PR link>`, or `--all` for every subscription of the calling pane.
+- [x] **SUB-06**: User or agent can list active subscriptions with `pr-relay ls`. The listing shows each subscription's events, current polling rate, last activity, and expiry time.
+- [x] **SUB-07**: `sub` validates that the PR exists and is accessible, and fails fast with a clear error otherwise.
 - [x] **SUB-08**: Subscribing records a silent baseline of current PR state. Only changes after subscription are delivered, never history.
 
 ### Events
@@ -45,25 +45,25 @@
 
 ### Lifecycle
 
-- [ ] **LIFE-01**: Subscriptions are removed automatically after the merged or closed notification is delivered.
+- [x] **LIFE-01**: Subscriptions are removed automatically after the merged or closed notification is delivered.
 - [x] **LIFE-02**: A subscription is cancelled automatically when its pane closes, or when the pane ID now points to a different terminal.
 - [x] **LIFE-04**: When an update is about to be pushed and herdr reports that the target tab or pane no longer exists, the subscription is cancelled and its pending updates are dropped. They are not retried or redirected. If herdr itself is unreachable, updates stay queued until herdr returns (DLV-08), and then this check applies.
 - [x] **LIFE-03**: Subscriptions and pending updates persist across daemon restarts and machine reboots.
 - [x] **LIFE-05**: Polling slows down progressively the longer a PR has no activity, from about 1 minute while CI is pending to about 1 hour for long-quiet PRs. It returns to the fast rate as soon as any change is detected.
-- [ ] **LIFE-06**: After 24 hours with no activity on a subscribed PR, the agent receives a check-in message asking whether it still needs the subscription, repeated every check-in interval (default 24 h) until `keep`, `unsub`, new activity or expiry (Phase 4 D-13). The message offers `pr-relay keep <PR link>` to keep it and `pr-relay unsub <PR link>` to drop it. `keep` resets the inactivity clock. If the agent doesn't respond, the PR drops to the slowest polling rate.
-- [ ] **LIFE-07**: A subscription with no PR activity for 7 days is cancelled automatically, and the agent receives one final "subscription expired" message. Both the 7-day expiry and the 24-hour check-in can be changed in config.
+- [x] **LIFE-06**: After 24 hours with no activity on a subscribed PR, the agent receives a check-in message asking whether it still needs the subscription, repeated every check-in interval (default 24 h) until `keep`, `unsub`, new activity or expiry (Phase 4 D-13). The message offers `pr-relay keep <PR link>` to keep it and `pr-relay unsub <PR link>` to drop it. `keep` resets the inactivity clock. If the agent doesn't respond, the PR drops to the slowest polling rate.
+- [x] **LIFE-07**: A subscription with no PR activity for 7 days is cancelled automatically, and the agent receives one final "subscription expired" message. Both the 7-day expiry and the 24-hour check-in can be changed in config.
 - [x] **LIFE-08**: When no subscribed pane for a PR can currently receive updates, because herdr is unreachable or every agent has been blocked for a long time, that PR is polled at the slowest rate.
 
 ### Daemon & GitHub
 
-- [ ] **DMN-01**: Exactly one daemon runs per user per machine. Any CLI command starts it automatically if it isn't running, and concurrent CLI calls never start two daemons.
+- [x] **DMN-01**: Exactly one daemon runs per user per machine. Any CLI command starts it automatically if it isn't running, and concurrent CLI calls never start two daemons.
 - [x] **DMN-02**: The daemon polls each watched PR once regardless of how many panes subscribe to it.
 - [x] **DMN-03**: The daemon uses the user's existing `gh` authentication, with no separate token setup, and recovers when the token changes.
 - [x] **DMN-04**: Polling is rate-limit safe. Requests are batched, intervals are adaptive (faster while CI is pending, slower when the PR is settled), and the daemon backs off on a low budget or secondary-limit responses.
-- [ ] **DMN-05**: User can check daemon health, subscription count, and rate-limit budget with `pr-relay status`.
-- [ ] **DMN-06**: The daemon writes rotating logs to a standard per-user location.
-- [ ] **DMN-07**: The CLI and daemon detect version mismatches, for example after an upgrade, and handle them by restarting the daemon or reporting a clear error.
-- [ ] **DMN-08**: Only github.com is supported. Other hosts are rejected with a clear error.
+- [x] **DMN-05**: User can check daemon health, subscription count, and rate-limit budget with `pr-relay status`.
+- [x] **DMN-06**: The daemon writes rotating logs to a standard per-user location.
+- [x] **DMN-07**: The CLI and daemon detect version mismatches, for example after an upgrade, and handle them by restarting the daemon or reporting a clear error.
+- [x] **DMN-08**: Only github.com is supported. Other hosts are rejected with a clear error.
 
 ### Distribution & Agent Integration
 
@@ -132,14 +132,14 @@
 | DLV-07 | Phase 3 | Complete |
 | DLV-08 | Phase 3 | Complete |
 | DLV-09 | Phase 3 | Complete |
-| DMN-01 | Phase 4 | Pending |
+| DMN-01 | Phase 4 | Complete |
 | DMN-02 | Phase 2 | Complete |
 | DMN-03 | Phase 2 | Complete |
 | DMN-04 | Phase 2 | Complete |
-| DMN-05 | Phase 4 | Pending |
-| DMN-06 | Phase 4 | Pending |
-| DMN-07 | Phase 4 | Pending |
-| DMN-08 | Phase 4 | Pending |
+| DMN-05 | Phase 4 | Complete |
+| DMN-06 | Phase 4 | Complete |
+| DMN-07 | Phase 4 | Complete |
+| DMN-08 | Phase 4 | Complete |
 | EVT-01 | Phase 1 | Complete |
 | EVT-02 | Phase 1 | Complete |
 | EVT-03 | Phase 1 | Complete |
@@ -149,23 +149,23 @@
 | EVT-07 | Phase 1 | Complete |
 | EVT-08 | Phase 1 | Complete |
 | EVT-09 | Phase 2 | Complete |
-| LIFE-01 | Phase 4 | Pending |
+| LIFE-01 | Phase 4 | Complete |
 | LIFE-02 | Phase 3 | Complete |
 | LIFE-03 | Phase 2 | Complete |
 | LIFE-04 | Phase 3 | Complete |
 | LIFE-05 | Phase 2 | Complete |
-| LIFE-06 | Phase 4 | Pending |
-| LIFE-07 | Phase 4 | Pending |
+| LIFE-06 | Phase 4 | Complete |
+| LIFE-07 | Phase 4 | Complete |
 | LIFE-08 | Phase 3 | Complete |
-| SUB-01 | Phase 4 | Pending |
-| SUB-02 | Phase 4 | Pending |
-| SUB-03 | Phase 4 | Pending |
+| SUB-01 | Phase 4 | Complete |
+| SUB-02 | Phase 4 | Complete |
+| SUB-03 | Phase 4 | Complete |
 | SUB-04 | Phase 2 | Complete |
-| SUB-05 | Phase 4 | Pending |
-| SUB-06 | Phase 4 | Pending |
-| SUB-07 | Phase 4 | Pending |
+| SUB-05 | Phase 4 | Complete |
+| SUB-06 | Phase 4 | Complete |
+| SUB-07 | Phase 4 | Complete |
 | SUB-08 | Phase 2 | Complete |
-| SUB-09 | Phase 4 | Pending |
+| SUB-09 | Phase 4 | Complete |
 
 **Coverage:**
 - v1 requirements: 48 total
