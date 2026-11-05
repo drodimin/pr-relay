@@ -34,6 +34,10 @@ type fakeGH struct {
 type fakePR struct {
 	ref      model.PRRef
 	comments []map[string]any
+	// merged makes the PR report state MERGED.
+	merged bool
+	// checks are extra CheckRun nodes appended to the template's rollup.
+	checks []map[string]any
 }
 
 func newFakeGH(t *testing.T) *fakeGH {
@@ -105,6 +109,38 @@ func (f *fakeGH) driveComments(ref model.PRRef, prefix string, total int, tick t
 	}
 }
 
+// setMerged marks the PR merged (state MERGED, no mergedBy).
+func (f *fakeGH) setMerged(ref model.PRRef) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.prs[fakeKey(ref.Owner, ref.Repo, ref.Number)].merged = true
+}
+
+// addFailedCheck appends a completed, failing GitHub Actions check run named
+// name to the PR's head commit.
+func (f *fakeGH) addFailedCheck(ref model.PRRef, name string, dbID int) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	pr := f.prs[fakeKey(ref.Owner, ref.Repo, ref.Number)]
+	now := time.Now().UTC()
+	pr.checks = append(pr.checks, map[string]any{
+		"__typename":  "CheckRun",
+		"id":          "CR_" + name,
+		"databaseId":  dbID,
+		"name":        name,
+		"status":      "COMPLETED",
+		"conclusion":  "FAILURE",
+		"url":         ref.URL() + "/checks",
+		"detailsUrl":  fmt.Sprintf("https://github.com/%s/%s/actions/runs/9/job/%d", ref.Owner, ref.Repo, dbID),
+		"startedAt":   now.Add(-time.Minute).Format(time.RFC3339),
+		"completedAt": now.Format(time.RFC3339),
+		"checkSuite": map[string]any{
+			"app":         map[string]any{"slug": "github-actions"},
+			"workflowRun": map[string]any{"runAttempt": 1, "workflow": map[string]any{"name": "ci"}},
+		},
+	})
+}
+
 func (f *fakeGH) requestCount() int {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -127,6 +163,25 @@ func (f *fakeGH) prJSON(pr *fakePR, commentsLast int) (map[string]any, error) {
 	obj["closed"] = false
 	obj["merged"] = false
 	obj["timelineItems"] = map[string]any{"nodes": []any{}}
+	if pr.merged {
+		obj["state"] = "MERGED"
+		obj["closed"] = true
+		obj["merged"] = true
+	}
+	if len(pr.checks) > 0 {
+		if rollup, ok := obj["statusCheckRollup"].(map[string]any); ok {
+			if ctxs, ok := rollup["contexts"].(map[string]any); ok {
+				nodes, _ := ctxs["nodes"].([]any)
+				for _, c := range pr.checks {
+					nodes = append(nodes, c)
+				}
+				ctxs["nodes"] = nodes
+				if n, ok := ctxs["totalCount"].(float64); ok {
+					ctxs["totalCount"] = int(n) + len(pr.checks)
+				}
+			}
+		}
+	}
 	visible := pr.comments
 	if commentsLast >= 0 && len(visible) > commentsLast {
 		visible = visible[len(visible)-commentsLast:]

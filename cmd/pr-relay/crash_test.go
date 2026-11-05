@@ -19,11 +19,13 @@ import (
 	"time"
 
 	"github.com/drodimin/pr-relay/internal/config"
+	"github.com/drodimin/pr-relay/internal/herdr"
 	"github.com/drodimin/pr-relay/internal/model"
 )
 
-// binPath is the pr-relay binary built once by TestMain.
-var binPath string
+// binPath is the pr-relay binary built once by TestMain. binOld is the same
+// source built as version 0.0.1-old, standing in for an older release.
+var binPath, binOld string
 
 func TestMain(m *testing.M) {
 	dir, err := os.MkdirTemp("", "pr-relay-bin-")
@@ -35,6 +37,13 @@ func TestMain(m *testing.M) {
 	out, err := exec.Command("go", "build", "-o", binPath, ".").CombinedOutput()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "build pr-relay: %v\n%s", err, out)
+		_ = os.RemoveAll(dir)
+		os.Exit(1)
+	}
+	binOld = filepath.Join(dir, "pr-relay-old")
+	out, err = exec.Command("go", "build", "-ldflags", "-X main.version=0.0.1-old", "-o", binOld, ".").CombinedOutput()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "build old pr-relay: %v\n%s", err, out)
 		_ = os.RemoveAll(dir)
 		os.Exit(1)
 	}
@@ -74,7 +83,10 @@ func newHarness(t *testing.T) *harness {
 func (h *harness) env() []string {
 	var env []string
 	for _, kv := range os.Environ() {
-		if strings.HasPrefix(kv, "GH_") || strings.HasPrefix(kv, "GITHUB_") || strings.HasPrefix(kv, "PR_RELAY_") {
+		// HERDR_* and XDG_RUNTIME_DIR are dropped too: tests may run inside
+		// a real herdr pane and must never reach it (Pitfall 2).
+		if strings.HasPrefix(kv, "GH_") || strings.HasPrefix(kv, "GITHUB_") || strings.HasPrefix(kv, "PR_RELAY_") ||
+			strings.HasPrefix(kv, "HERDR_") || strings.HasPrefix(kv, "XDG_RUNTIME_DIR=") {
 			continue
 		}
 		env = append(env, kv)
@@ -404,5 +416,63 @@ func TestCrashLoop(t *testing.T) {
 	tmps, _ := filepath.Glob(filepath.Join(h.stateDir, "state.json.tmp-*"))
 	if len(tmps) != 0 {
 		t.Errorf("leftover temp files: %v", tmps)
+	}
+}
+
+// TestCrashLifecycle is EVT-09 for lifecycle events: a check-in queued while
+// the pane is busy survives a SIGKILL of the daemon and is typed exactly once
+// after the next CLI call auto-restarts it.
+func TestCrashLifecycle(t *testing.T) {
+	// checkin_after is long enough that no second check-in can be queued
+	// between the kill and the count below.
+	e := newE2E(t, "\n[lifecycle]\ncheckin_after = \"3s\"\nexpire_after = \"1h\"\n")
+	e.gh.addPR(e2eRef)
+	// A working pane holds delivery: the check-in stays pending (D-08).
+	e.autoIdle.Store(false)
+	e.herdr.SetStatus("w1:p1", herdr.StatusWorking)
+	e.mustRun("w1:p1", "sub", e2eURL)
+
+	e.eventually(10*time.Second, "a pending check-in in state.json", func() bool {
+		st, ok := e.readState()
+		if !ok {
+			return false
+		}
+		for _, s := range st.Subs {
+			for _, p := range s.Pending {
+				if s.PaneID == "w1:p1" && p.Event.Type == string(model.EventCheckin) {
+					return true
+				}
+			}
+		}
+		return false
+	})
+	pid := e.daemonPID()
+	if pid <= 0 {
+		t.Fatal("no daemon pid file")
+	}
+	if err := syscall.Kill(pid, syscall.SIGKILL); err != nil {
+		t.Fatalf("kill daemon %d: %v", pid, err)
+	}
+	e.eventually(5*time.Second, "the killed daemon to exit", func() bool {
+		return syscall.Kill(pid, 0) != nil
+	})
+	if p := e.promptTexts(""); len(p) != 0 {
+		t.Fatalf("prompts sent while the pane was working: %q", p)
+	}
+
+	e.herdr.SetStatus("w1:p1", herdr.StatusIdle)
+	e.autoIdle.Store(true)
+	st := e.mustRun("", "status")
+	m := pidRE.FindStringSubmatch(st.stdout)
+	if m == nil || m[1] == strconv.Itoa(pid) {
+		t.Fatalf("status did not restart the daemon (old pid %d):\n%s", pid, st)
+	}
+
+	const checkin = "check-in: no activity for"
+	e.waitPrompt("w1:p1", checkin, 10*time.Second)
+	time.Sleep(300 * time.Millisecond)
+	e.mustRun("w1:p1", "unsub", e2eURL)
+	if got := e.prompts("w1:p1", checkin); len(got) != 1 {
+		t.Fatalf("check-in delivered %d times, want exactly once: %q", len(got), got)
 	}
 }
