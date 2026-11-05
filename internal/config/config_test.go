@@ -85,6 +85,10 @@ pending_cap = 7
 
 [delivery]
 quiet_period = "30s"
+
+[lifecycle]
+checkin_after = "12h"
+expire_after = "3d"
 `)
 	cfg, _, err := Load(p)
 	if err != nil {
@@ -101,6 +105,7 @@ quiet_period = "30s"
 		},
 		Subscriptions: SubsConfig{PendingCap: 7},
 		Delivery:      DeliveryConfig{QuietPeriod: Duration{30 * time.Second}},
+		Lifecycle:     LifecycleConfig{CheckinAfter: Duration{12 * time.Hour}, ExpireAfter: Duration{72 * time.Hour}},
 	}
 	if !reflect.DeepEqual(cfg, want) {
 		t.Fatalf("cfg = %+v, want %+v", cfg, want)

@@ -24,7 +24,10 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"math"
 	"os"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/BurntSushi/toml"
@@ -81,12 +84,48 @@ func quietPeriodFloor() time.Duration {
 	return MinQuietPeriod
 }
 
-// Duration is a time.Duration that decodes from a Go duration string.
+// Lifecycle defaults and bounds (D-15, LIFE-06, LIFE-07). The floor stops a
+// typo such as "1m" from flooding an agent with check-ins; the ceilings stop
+// a subscription from outliving any plausible need for it.
+const (
+	DefaultCheckinAfter = 24 * time.Hour
+	DefaultExpireAfter  = 7 * 24 * time.Hour
+	MinCheckinAfter     = time.Hour
+	MaxCheckinAfter     = 30 * 24 * time.Hour
+	MaxExpireAfter      = 90 * 24 * time.Hour
+)
+
+// lifecycleFloor returns the smallest checkin_after Validate accepts.
+func lifecycleFloor() time.Duration {
+	if os.Getenv(EnvFastPoll) == "1" {
+		return fastPollFloor
+	}
+	return MinCheckinAfter
+}
+
+// maxDays keeps n*24h inside time.Duration's range.
+const maxDays = int64(math.MaxInt64 / int64(24*time.Hour))
+
+// Duration is a time.Duration that decodes from a Go duration string or a
+// whole number of days ("7d").
 type Duration struct{ time.Duration }
 
-// UnmarshalText parses a duration string such as "100ms" or "16m".
+// UnmarshalText parses a duration string such as "100ms", "16m" or "7d". The
+// day form is a positive whole number followed by a single "d".
 func (d *Duration) UnmarshalText(b []byte) error {
-	v, err := time.ParseDuration(string(b))
+	s := string(b)
+	if n, ok := strings.CutSuffix(s, "d"); ok {
+		if n == "" || strings.Trim(n, "0123456789") != "" {
+			return fmt.Errorf("invalid duration %q: day form must be a whole number of days, such as \"7d\"", s)
+		}
+		days, err := strconv.ParseInt(n, 10, 64)
+		if err != nil || days < 1 || days > maxDays {
+			return fmt.Errorf("invalid duration %q: day count out of range", s)
+		}
+		d.Duration = time.Duration(days) * 24 * time.Hour
+		return nil
+	}
+	v, err := time.ParseDuration(s)
 	if err != nil {
 		return err
 	}
@@ -119,11 +158,23 @@ type DeliveryConfig struct {
 	QuietPeriod Duration `toml:"quiet_period"`
 }
 
+// LifecycleConfig is the [lifecycle] table (D-15, LIFE-07).
+type LifecycleConfig struct {
+	// CheckinAfter is how long a subscription may go without a delivered
+	// event before the agent is asked whether it still needs it (LIFE-06).
+	CheckinAfter Duration `toml:"checkin_after"`
+	// ExpireAfter is how long a subscription may go without activity before
+	// it is removed with a final message (LIFE-07). It must exceed
+	// CheckinAfter.
+	ExpireAfter Duration `toml:"expire_after"`
+}
+
 // Config is the whole config.toml.
 type Config struct {
-	Poll          PollConfig     `toml:"poll"`
-	Subscriptions SubsConfig     `toml:"subscriptions"`
-	Delivery      DeliveryConfig `toml:"delivery"`
+	Poll          PollConfig      `toml:"poll"`
+	Subscriptions SubsConfig      `toml:"subscriptions"`
+	Delivery      DeliveryConfig  `toml:"delivery"`
+	Lifecycle     LifecycleConfig `toml:"lifecycle"`
 }
 
 // Defaults returns a Config with every knob at its default.
@@ -139,6 +190,10 @@ func Defaults() Config {
 		},
 		Subscriptions: SubsConfig{PendingCap: DefaultPendingCap},
 		Delivery:      DeliveryConfig{QuietPeriod: Duration{DefaultQuietPeriod}},
+		Lifecycle: LifecycleConfig{
+			CheckinAfter: Duration{DefaultCheckinAfter},
+			ExpireAfter:  Duration{DefaultExpireAfter},
+		},
 	}
 }
 
@@ -173,6 +228,8 @@ func (c Config) Validate() error {
 	floor := minIntervalFloor()
 	qp := c.Delivery.QuietPeriod.Duration
 	qpFloor := quietPeriodFloor()
+	ci, ex := c.Lifecycle.CheckinAfter.Duration, c.Lifecycle.ExpireAfter.Duration
+	ciFloor := lifecycleFloor()
 	switch {
 	case p.MinInterval.Duration < floor:
 		return fmt.Errorf("config: min_interval: must be at least %s, got %s", floor, p.MinInterval.Duration)
@@ -192,6 +249,14 @@ func (c Config) Validate() error {
 		return fmt.Errorf("config: quiet_period: must be at least %s, got %s", qpFloor, qp)
 	case qp > MaxQuietPeriod:
 		return fmt.Errorf("config: quiet_period: must be at most %s, got %s", MaxQuietPeriod, qp)
+	case ci < ciFloor:
+		return fmt.Errorf("config: lifecycle.checkin_after: must be at least %s, got %s", ciFloor, ci)
+	case ci > MaxCheckinAfter:
+		return fmt.Errorf("config: lifecycle.checkin_after: must be at most %s, got %s", MaxCheckinAfter, ci)
+	case ex <= ci:
+		return fmt.Errorf("config: lifecycle.expire_after: must be greater than checkin_after %s, got %s", ci, ex)
+	case ex > MaxExpireAfter:
+		return fmt.Errorf("config: lifecycle.expire_after: must be at most %s, got %s", MaxExpireAfter, ex)
 	}
 	return nil
 }
