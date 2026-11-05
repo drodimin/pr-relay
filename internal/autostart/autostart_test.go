@@ -94,6 +94,18 @@ func fakeDaemon() int {
 // binary as a fake daemon at version fakeVersion.
 func setup(t *testing.T, cliVersion, fakeVersion string) Options {
 	t.Helper()
+	isolate(t)
+	o := Options{Version: cliVersion, Exe: os.Args[0], Env: fakeEnv(fakeVersion)}
+	t.Cleanup(func() {
+		_, _ = Stop(context.Background(), o)
+	})
+	return o
+}
+
+// isolate points the socket, log and state paths at a fresh short temp dir
+// (short because of the macOS sun_path limit) and returns the socket path.
+func isolate(t *testing.T) string {
+	t.Helper()
 	dir, err := os.MkdirTemp("", "as")
 	if err != nil {
 		t.Fatal(err)
@@ -102,11 +114,11 @@ func setup(t *testing.T, cliVersion, fakeVersion string) Options {
 	t.Setenv(paths.EnvSocket, filepath.Join(dir, "s", "pr-relay.sock"))
 	t.Setenv(paths.EnvLogDir, filepath.Join(dir, "log"))
 	t.Setenv(paths.EnvStateDir, filepath.Join(dir, "state"))
-	o := Options{Version: cliVersion, Exe: os.Args[0], Env: fakeEnv(fakeVersion)}
-	t.Cleanup(func() {
-		_, _ = Stop(context.Background(), o)
-	})
-	return o
+	socket, err := paths.SocketPath()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return socket
 }
 
 func fakeEnv(version string, extra ...string) []string {
@@ -302,4 +314,62 @@ func TestReadyTimeoutAndEOF(t *testing.T) {
 		t.Fatalf("EOF err = %v", err)
 	}
 	_ = r.Close()
+}
+
+// slowListener delays every accepted connection, like a daemon whose accept
+// loop is busy (WR-08).
+type slowListener struct {
+	net.Listener
+	delay time.Duration
+}
+
+func (l slowListener) Accept() (net.Conn, error) {
+	c, err := l.Listener.Accept()
+	if err == nil {
+		time.Sleep(l.delay)
+	}
+	return c, err
+}
+
+func TestSlowHelloRetried(t *testing.T) {
+	socket := isolate(t)
+	ln, err := net.Listen("unix", socket)
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv := ctl.NewServer(ctl.ServerOptions{Self: ctl.Peer{Version: "v-test", Protocol: ctl.Protocol, PID: os.Getpid()}})
+	go func() { _ = srv.Serve(slowListener{Listener: ln, delay: 700 * time.Millisecond}) }()
+	t.Cleanup(func() { _ = srv.Close(time.Second) })
+
+	// A spawn would fail, so success proves the live daemon was retried.
+	o := Options{Version: "v-test", Exe: "/nonexistent/pr-relay"}
+	if _, err := Connect(context.Background(), o); err != nil {
+		t.Fatalf("Connect: %v", err)
+	}
+}
+
+func TestHelloNeverAnswers(t *testing.T) {
+	socket := isolate(t)
+	ln, err := net.Listen("unix", socket) // never accepts
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = ln.Close() })
+
+	o := Options{Version: "v-test", Exe: "/nonexistent/pr-relay"}
+	start := time.Now()
+	_, err = Connect(context.Background(), o)
+	if elapsed := time.Since(start); elapsed > 5*time.Second {
+		t.Fatalf("Connect took %s, want under 5s", elapsed)
+	}
+	if err == nil {
+		t.Fatal("Connect succeeded against a hung daemon")
+	}
+	msg := err.Error()
+	if !strings.Contains(msg, "not answering") || !strings.Contains(msg, "daemon log") {
+		t.Fatalf("Connect err = %q, want it to name a non-answering daemon and the daemon log", msg)
+	}
+	if strings.Contains(msg, "nonexistent") {
+		t.Fatalf("Connect err = %q, want no spawn attempt", msg)
+	}
 }
