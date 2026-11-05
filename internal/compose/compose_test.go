@@ -285,3 +285,58 @@ func TestMessageGolden(t *testing.T) {
 	}
 	testutil.Golden(t, "testdata/messages.golden", []byte(b.String()))
 }
+
+// TestPartialAckSupersede covers IN-01: a flood-guard cut must not ack one
+// half of an R4 conflict pair while the other half stays pending, and must
+// still make progress.
+func TestPartialAckSupersede(t *testing.T) {
+	open := View{State: "OPEN"}
+	lineOf := func(e model.Event) string { return render.Lines(alpha, []model.Event{e})[0] }
+
+	t.Run("split", func(t *testing.T) {
+		evs := []store.PendingEvent{
+			pe(1, comment("bob")), pe(2, comment("carol")),
+			pe(5, conflict(true)), pe(6, comment("dave")), pe(7, comment("erin")), pe(8, comment("frank")), pe(9, conflict(false)),
+		}
+		g := group("a", alpha, open, evs...)
+		// Room for the first two comments only; dave (seq 6) is held.
+		inc := lineOf(comment("bob")) + "\n" + lineOf(comment("carol"))
+		max := len(inc) + 1 + len(render.HeldLine(5))
+		res := Message([]Group{g}, Limits{MaxBytes: max})
+		if res.Held != 3 {
+			t.Fatalf("Held=%d, want 3; text:\n%s", res.Held, res.Text)
+		}
+		ack, ok := res.Acks["a"]
+		if !ok || ack >= 5 {
+			t.Fatalf("ack %d (ok=%v), want < 5 so the conflict pair stays pending together", ack, ok)
+		}
+		var rest []store.PendingEvent
+		for _, p := range evs {
+			if p.Seq > ack {
+				rest = append(rest, p)
+			}
+		}
+		next := Message([]Group{group("a", alpha, open, rest...)}, Limits{})
+		if strings.Contains(next.Text, "conflict: cleared") {
+			t.Errorf("next delivery renders a lone cleared line:\n%s", next.Text)
+		}
+		if !strings.Contains(next.Text, "dave") {
+			t.Errorf("next delivery lost the held comment:\n%s", next.Text)
+		}
+	})
+
+	t.Run("no-progress", func(t *testing.T) {
+		evs := []store.PendingEvent{
+			pe(5, conflict(true)), pe(6, comment("bob")), pe(7, comment("carol")), pe(8, comment("erin")), pe(9, conflict(false)),
+		}
+		g := group("a", alpha, open, evs...)
+		max := len(lineOf(comment("bob"))) + 1 + len(render.HeldLine(3))
+		res := Message([]Group{g}, Limits{MaxBytes: max})
+		if res.Held != 2 {
+			t.Fatalf("Held=%d, want 2; text:\n%s", res.Held, res.Text)
+		}
+		if res.Acks["a"] != 6 {
+			t.Errorf("ack %d, want 6 (fallback h.seq-1 keeps progress)", res.Acks["a"])
+		}
+	})
+}
