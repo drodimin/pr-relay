@@ -1,10 +1,14 @@
 package poller
 
 import (
+	"context"
+	"log/slog"
 	"strconv"
 	"testing"
+	"testing/synctest"
 	"time"
 
+	"github.com/drodimin/pr-relay/internal/config"
 	"github.com/drodimin/pr-relay/internal/model"
 	"github.com/drodimin/pr-relay/internal/store"
 )
@@ -301,4 +305,140 @@ func TestInactiveSlowestTier(t *testing.T) {
 	if want := h.e.cfg.Poll.MaxInterval.Duration; interval != want {
 		t.Fatalf("interval after 24h idle = %v, want %v", interval, want)
 	}
+}
+
+// lifeTRun starts RunLifecycle on s.e in the bubble and returns a stop func
+// that cancels it and checks it returned nil promptly.
+func lifeTRun(t *testing.T, s *sched, grace, every time.Duration) (stop func()) {
+	t.Helper()
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() { done <- s.e.RunLifecycle(ctx, grace, every) }()
+	synctest.Wait()
+	return func() {
+		t.Helper()
+		cancel()
+		synctest.Wait()
+		select {
+		case err := <-done:
+			if err != nil {
+				t.Errorf("RunLifecycle returned %v", err)
+			}
+		default:
+			t.Error("RunLifecycle did not return after cancel")
+		}
+	}
+}
+
+// lifeTEnding reports the Ending marker of sub id ("<gone>" when deleted).
+func lifeTEnding(s *sched, id string) string {
+	s.e.mu.Lock()
+	defer s.e.mu.Unlock()
+	if sub := s.e.state.Subs[id]; sub != nil {
+		return sub.Ending
+	}
+	return "<gone>"
+}
+
+func TestRunLifecycleGrace(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		s := newSched(t, schedOpt{})
+		info := s.sub(prA, "w1:p1")
+		s.e.mu.Lock()
+		s.e.state.Subs[info.SubID].ClockAt = time.Now().Add(-8 * 24 * time.Hour)
+		s.e.mu.Unlock()
+
+		stop := lifeTRun(t, s, 10*time.Minute, time.Minute)
+		s.advance(10*time.Minute - time.Second)
+		if got := lifeTEnding(s, info.SubID); got != "" {
+			t.Fatalf("Ending = %q before the grace ended, want live", got)
+		}
+		if d, _ := s.e.Pending(info.SubID); len(d.Events) != 0 {
+			t.Fatalf("pending during grace = %+v", d.Events)
+		}
+		s.advance(time.Second)
+		if got := lifeTEnding(s, info.SubID); got != ReasonExpired {
+			t.Fatalf("Ending = %q right after grace, want expired", got)
+		}
+		stop()
+	})
+}
+
+// TestRunLifecycleTicks: after the grace the pass repeats every interval.
+func TestRunLifecycleTicks(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		s := newSched(t, schedOpt{})
+		info := s.sub(prA, "w1:p1")
+		stop := lifeTRun(t, s, 0, time.Minute)
+		s.advance(lifeTCheckin - time.Minute)
+		if d, _ := s.e.Pending(info.SubID); len(d.Events) != 0 {
+			t.Fatalf("pending before 24h = %+v", d.Events)
+		}
+		s.advance(time.Minute)
+		d, _ := s.e.Pending(info.SubID)
+		if len(d.Events) != 1 || d.Events[0].Event.Type != model.EventCheckin {
+			t.Fatalf("pending at 24h = %+v, want one check-in", d.Events)
+		}
+		stop()
+	})
+}
+
+// TestRunLifecycleKeepsWake: the lifecycle loop must not consume the
+// scheduler's wake channel, or a new PR could wait up to maxSleep.
+func TestRunLifecycleKeepsWake(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		s := newSched(t, schedOpt{})
+		stop := lifeTRun(t, s, 0, time.Minute)
+		s.e.poke()
+		s.advance(2 * time.Minute)
+		select {
+		case <-s.e.Wake():
+		default:
+			t.Error("RunLifecycle consumed the scheduler wake")
+		}
+		stop()
+	})
+}
+
+// TestRunLifecycleSaveError: a failed save is logged and the loop goes on
+// (the daemon never exits on its own, D-18).
+func TestRunLifecycleSaveError(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		saver := &memSaver{}
+		logs := &logCapture{}
+		f := newFakeGH(t)
+		e, err := New(Options{Saver: saver, State: store.NewState(), Fetcher: newTestClient(t, f),
+			Config: config.Defaults(), Logger: slog.New(logs)})
+		if err != nil {
+			t.Fatal(err)
+		}
+		s := &sched{t: t, f: f, e: e}
+		info := s.sub(prA, "w1:p1")
+		saver.setFail(func(*store.State) bool { return true })
+		stop := lifeTRun(t, s, 0, time.Minute)
+		s.advance(lifeTCheckin)
+		if len(logs.named("lifecycle tick failed")) == 0 {
+			t.Fatal("no \"lifecycle tick failed\" log")
+		}
+		saver.setFail(nil)
+		s.advance(time.Minute)
+		if d, _ := e.Pending(info.SubID); len(d.Events) != 1 {
+			t.Fatalf("pending after save recovered = %+v, want one check-in", d.Events)
+		}
+		stop()
+	})
+}
+
+func TestRunLifecycleSecondRun(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		s := newSched(t, schedOpt{})
+		stop := lifeTRun(t, s, time.Hour, time.Minute)
+		if err := s.e.RunLifecycle(context.Background(), 0, time.Minute); err == nil {
+			t.Error("second concurrent RunLifecycle returned nil")
+		}
+		stop()
+		// Once the first run has returned a new one may start.
+		stop = lifeTRun(t, s, time.Hour, time.Minute)
+		stop()
+	})
 }
