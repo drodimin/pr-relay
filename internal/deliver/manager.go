@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"path/filepath"
 	"slices"
+	"sort"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -55,6 +56,12 @@ type Manager struct {
 	jitter func() float64
 
 	running atomic.Bool
+
+	// epMu guards epSnap, a copy of the live endpoints by socket that Run
+	// updates whenever it starts or retires one, so Sockets can read socket
+	// health from other goroutines without racing Run (D-23, T-04-08).
+	epMu   sync.Mutex
+	epSnap map[string]*herdr.Endpoint
 
 	// Run-goroutine state: only the Run goroutine reads or writes these.
 	endpoints map[string]*epState
@@ -164,6 +171,9 @@ func (m *Manager) Run(ctx context.Context) error {
 		cancel()
 		m.wg.Wait()
 		m.endpoints, m.workers, m.checks, m.known = nil, nil, nil, nil
+		m.epMu.Lock()
+		m.epSnap = nil
+		m.epMu.Unlock()
 	}()
 
 	m.sync(ctx)
@@ -200,7 +210,8 @@ func (m *Manager) Run(ctx context.Context) error {
 func (m *Manager) sync(ctx context.Context) {
 	bySock := map[string]map[string]*paneAgg{}
 	for _, s := range m.eng.List() {
-		if s.HerdrSocket == "" || s.PaneID == "" {
+		// WR-09: a relative socket (the "dev" placeholder) is never dialled.
+		if s.HerdrSocket == "" || s.PaneID == "" || !filepath.IsAbs(s.HerdrSocket) {
 			continue
 		}
 		sock := filepath.Clean(s.HerdrSocket) // Pitfall 10: one key per path
@@ -295,6 +306,12 @@ func (m *Manager) startEndpoint(ctx context.Context, sock string, ids []string) 
 	ectx, cancel := context.WithCancel(ctx)
 	es := &epState{socket: sock, ep: ep, cl: cl, ctx: ectx, cancel: cancel}
 	m.endpoints[sock] = es
+	m.epMu.Lock()
+	if m.epSnap == nil {
+		m.epSnap = map[string]*herdr.Endpoint{}
+	}
+	m.epSnap[sock] = ep
+	m.epMu.Unlock()
 	m.wg.Add(2)
 	go func() {
 		defer m.wg.Done()
@@ -322,6 +339,9 @@ func (m *Manager) startEndpoint(ctx context.Context, sock string, ids []string) 
 func (m *Manager) retire(sock string, es *epState) {
 	es.cancel()
 	delete(m.endpoints, sock)
+	m.epMu.Lock()
+	delete(m.epSnap, sock)
+	m.epMu.Unlock()
 	for ref, ws := range m.workers {
 		if ws.es == es {
 			ws.cancel()
@@ -417,14 +437,14 @@ func (m *Manager) handle(ctx context.Context, te taggedEvent) {
 		// each, so a pane closed during the outage is cancelled (WR-04,
 		// LIFE-04). startCheck dedups and paneGone keeps the RestoreGrace
 		// guard, so a pane still being restored is never cancelled.
-		// KindReconnected also fires on pane-set resubscribes (IN-03,
-		// deferred): that costs one extra pane.get per worker-less pane.
-		for _, id := range m.subscribedPanes(es.socket) {
-			ref := poller.PaneRef{HerdrSocket: es.socket, PaneID: id}
-			if m.workers[ref] == nil {
-				m.startCheck(ctx, es, ref)
-			}
-		}
+		// Pane-set resubscribes emit KindResubscribed instead (IN-03).
+		m.checkIdlePanes(ctx, es)
+	case herdr.KindResubscribed:
+		// The link never went down (IN-03): poke no worker, so no quiet
+		// window restarts, and keep es.up. Worker-less panes (a newly
+		// subscribed one among them) still get one pane.get check.
+		m.sync(ctx)
+		m.checkIdlePanes(ctx, es)
 	case herdr.KindDisconnected:
 		if es.up {
 			es.up = false
@@ -432,6 +452,53 @@ func (m *Manager) handle(ctx context.Context, te taggedEvent) {
 		}
 		m.sync(ctx)
 	}
+}
+
+// checkIdlePanes starts one pane check for every pane subscribed on es that
+// has no worker.
+func (m *Manager) checkIdlePanes(ctx context.Context, es *epState) {
+	for _, id := range m.subscribedPanes(es.socket) {
+		ref := poller.PaneRef{HerdrSocket: es.socket, PaneID: id}
+		if m.workers[ref] == nil {
+			m.startCheck(ctx, es, ref)
+		}
+	}
+}
+
+// SocketStatus is the health of one herdr socket the manager watches. Since
+// is when it came up while Up, and when it went down otherwise.
+type SocketStatus struct {
+	Socket string
+	Up     bool
+	Since  time.Time
+}
+
+// Sockets returns one SocketStatus per live endpoint, sorted by socket. It
+// is safe to call from any goroutine, and returns nil while Run is not
+// running (D-23).
+func (m *Manager) Sockets() []SocketStatus {
+	m.epMu.Lock()
+	eps := make(map[string]*herdr.Endpoint, len(m.epSnap))
+	for sock, ep := range m.epSnap {
+		eps[sock] = ep
+	}
+	m.epMu.Unlock()
+	if len(eps) == 0 {
+		return nil
+	}
+	out := make([]SocketStatus, 0, len(eps))
+	for sock, ep := range eps {
+		// UpSince is zero while down, so one read decides both fields
+		// and a transition between two reads cannot pair Up with a zero
+		// Since.
+		st := SocketStatus{Socket: sock, Since: ep.UpSince()}
+		if st.Up = !st.Since.IsZero(); !st.Up {
+			st.Since = ep.DownSince()
+		}
+		out = append(out, st)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Socket < out[j].Socket })
+	return out
 }
 
 // subscribedPanes lists the pane ids subscribed on a cleaned socket.
