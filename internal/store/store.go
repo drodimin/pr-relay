@@ -131,28 +131,42 @@ func (s *Store) load() (*State, error) {
 	return &st, nil
 }
 
-// migrate upgrades raw state of the given version to SchemaVersion. Version 2
-// is current. Version 1 migrates additively: version 2 only adds the optional
-// Subscription.AgentKind field, so the migration rewrites the version key and
-// leaves every other byte of data as it was.
+// migrate upgrades raw state of the given version to SchemaVersion, one
+// version step at a time. Version 3 is current. Every step so far is
+// additive and rewrites only the "version" key, leaving every other byte of
+// data as it was:
+//
+//   - 1 -> 2 adds the optional Subscription.AgentKind field.
+//   - 2 -> 3 adds the optional Subscription lifecycle fields LastEventAt,
+//     LastEventType, CheckinAt, Ending and EndSeq, all zero for old files.
 func migrate(version int, raw []byte) ([]byte, error) {
-	switch version {
-	case SchemaVersion:
-		return raw, nil
-	case 1:
-		var m map[string]json.RawMessage
-		if err := json.Unmarshal(raw, &m); err != nil {
-			return nil, fmt.Errorf("store: migrate: v1: %w", err)
-		}
-		m["version"] = json.RawMessage("2")
-		out, err := json.Marshal(m)
-		if err != nil {
-			return nil, fmt.Errorf("store: migrate: v1: %w", err)
-		}
-		return out, nil
-	default:
+	if version < 1 || version > SchemaVersion {
 		return nil, fmt.Errorf("store: migrate: no migration from version %d", version)
 	}
+	for version < SchemaVersion {
+		switch version {
+		case 1, 2:
+			out, err := bumpVersion(raw, version+1)
+			if err != nil {
+				return nil, fmt.Errorf("store: migrate: v%d: %w", version, err)
+			}
+			raw = out
+		default:
+			return nil, fmt.Errorf("store: migrate: no migration from version %d", version)
+		}
+		version++
+	}
+	return raw, nil
+}
+
+// bumpVersion rewrites only the top-level "version" key of raw to v.
+func bumpVersion(raw []byte, v int) ([]byte, error) {
+	var m map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &m); err != nil {
+		return nil, err
+	}
+	m["version"] = json.RawMessage(strconv.Itoa(v))
+	return json.Marshal(m)
 }
 
 // normalize makes nil maps empty and drops null records so callers can

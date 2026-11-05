@@ -40,7 +40,7 @@ import (
 )
 
 // SchemaVersion is the state file schema version this binary writes.
-const SchemaVersion = 2
+const SchemaVersion = 3
 
 // State is the whole durable state of the daemon.
 type State struct {
@@ -110,9 +110,25 @@ type Subscription struct {
 	CreatedAt time.Time `json:"created_at"`
 	// UpdatedAt is when the subscription was last changed.
 	UpdatedAt time.Time `json:"updated_at"`
-	// ClockAt is the check-in/expiry clock. Re-subscribing (D-18) and keep
-	// (D-14) reset it.
+	// ClockAt is the check-in/expiry clock. Re-subscribing, keep and acked
+	// real (non-lifecycle) events reset it (D-11).
 	ClockAt time.Time `json:"clock_at"`
+	// LastEventAt is when the last real (non-lifecycle) event for this
+	// subscription was acked, shown by ls as "last=". Zero means none yet.
+	LastEventAt time.Time `json:"last_event_at,omitzero"`
+	// LastEventType is the type of the event recorded in LastEventAt.
+	LastEventType model.EventType `json:"last_event_type,omitempty"`
+	// CheckinAt is when the last check-in event was queued (D-13). keep
+	// clears it. Zero means no check-in is outstanding.
+	CheckinAt time.Time `json:"checkin_at,omitzero"`
+	// Ending is "" for a live subscription, or "closed" or "expired" when the
+	// subscription is ending: its final event is queued at EndSeq and the
+	// subscription is deleted once that event is acked (D-14, D-16). An
+	// ending subscription does not drive polling and receives no new events.
+	Ending string `json:"ending,omitempty"`
+	// EndSeq is the Seq of the final (closed or expired) event. Valid only
+	// when Ending is set.
+	EndSeq uint64 `json:"end_seq,omitempty"`
 	// Pending holds events not yet acknowledged, in Seq order.
 	Pending []PendingEvent `json:"pending"`
 	// Dropped counts events dropped by the pending cap since the marker was

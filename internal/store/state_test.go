@@ -15,8 +15,8 @@ import (
 
 func TestNewState(t *testing.T) {
 	s := NewState()
-	if s.Version != SchemaVersion || SchemaVersion != 2 {
-		t.Fatalf("Version = %d, SchemaVersion = %d, want 2", s.Version, SchemaVersion)
+	if s.Version != SchemaVersion || SchemaVersion != 3 {
+		t.Fatalf("Version = %d, SchemaVersion = %d, want 3", s.Version, SchemaVersion)
 	}
 	if s.PRs == nil || len(s.PRs) != 0 {
 		t.Fatalf("PRs = %#v, want empty non-nil map", s.PRs)
