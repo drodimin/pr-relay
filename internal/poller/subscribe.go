@@ -77,28 +77,35 @@ func (e *Engine) SubscribeVerified(ctx context.Context, req SubRequest) (SubInfo
 	if err != nil {
 		return SubInfo{}, err
 	}
-	if info, done, err := e.subscribeVerifiedCommit(req, mask, nil); done {
+	if info, done, err := e.subscribeVerifiedCommit(ctx, req, mask, nil); done {
 		return info, err
 	}
 
-	// Probes run one at a time, like polls. Re-check under pollMu: a
-	// concurrent caller may have just baselined the PR, and this one can
-	// then join without spending a request.
-	e.pollMu.Lock()
-	defer e.pollMu.Unlock()
-	if info, done, err := e.subscribeVerifiedCommit(req, mask, nil); done {
+	// Probes run one at a time, like polls. The wait is bounded by ctx: a
+	// caller whose deadline passed while a poll held the lock gets a
+	// timeout and nothing is persisted (review CR-01). Re-check under the
+	// lock: a concurrent caller may have just baselined the PR, and this
+	// one can then join without spending a request.
+	if err := e.lockPoll(ctx); err != nil {
+		return SubInfo{}, verifyErr(ctx, err)
+	}
+	defer e.unlockPoll()
+	if err := ctx.Err(); err != nil {
+		return SubInfo{}, verifyErr(ctx, err)
+	}
+	if info, done, err := e.subscribeVerifiedCommit(ctx, req, mask, nil); done {
 		return info, err
 	}
 	p, verr := e.probeLocked(ctx, req.PR)
 	if verr != nil {
 		return SubInfo{}, verr
 	}
-	info, _, err := e.subscribeVerifiedCommit(req, mask, p)
+	info, _, err := e.subscribeVerifiedCommit(ctx, req, mask, p)
 	return info, err
 }
 
 // probeLocked fetches ref once, through the budget gate as a forced batch,
-// and returns its snapshot when it is OPEN. The caller holds pollMu.
+// and returns its snapshot when it is OPEN. The caller holds the poll lock.
 func (e *Engine) probeLocked(ctx context.Context, ref model.PRRef) (*probed, *VerifyError) {
 	e.mu.Lock()
 	now := e.now()
@@ -141,7 +148,11 @@ func (e *Engine) probeLocked(ctx context.Context, ref model.PRRef) (*probed, *Ve
 // when a probe is needed. With p set it creates the record from the probe
 // when it is still absent; a record that appeared meanwhile keeps its own
 // Memory (adopting the probe baseline only if it had none).
-func (e *Engine) subscribeVerifiedCommit(req SubRequest, mask []model.EventType, p *probed) (SubInfo, bool, error) {
+//
+// ctx is checked under e.mu immediately before the commit: once the caller
+// gave up, nothing is persisted and it reports done with the context error
+// (review CR-01), so the CLI's failure and the stored state agree.
+func (e *Engine) subscribeVerifiedCommit(ctx context.Context, req SubRequest, mask []model.EventType, p *probed) (SubInfo, bool, error) {
 	key := store.PRKey(req.PR)
 	e.mu.Lock()
 	rec := e.state.PRs[key]
@@ -152,6 +163,11 @@ func (e *Engine) subscribeVerifiedCommit(req SubRequest, mask []model.EventType,
 	if p == nil && (rec == nil || !rec.Memory.Baselined || rec.LastError != "") {
 		e.mu.Unlock()
 		return SubInfo{}, false, nil
+	}
+
+	if err := ctx.Err(); err != nil {
+		e.mu.Unlock()
+		return SubInfo{}, true, verifyErr(ctx, err)
 	}
 
 	now := e.now()
