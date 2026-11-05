@@ -369,6 +369,50 @@ func TestResubRevivesExpired(t *testing.T) {
 	}
 }
 
+// TestResubscribeClearsCheckin covers review CR-03: re-subscribing a live
+// subscription answers its pending check-in, exactly like keep.
+func TestResubscribeClearsCheckin(t *testing.T) {
+	f := &subTFetcher{fn: subTSnapshot("OPEN")}
+	h := subTHarness(t, f)
+	info, err := h.e.SubscribeVerified(context.Background(), subTReq(prA, "w1:p1"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	h.setSub(info.SubID, func(s *store.Subscription) {
+		s.CheckinAt = h.clk.Now()
+		s.Pending = []store.PendingEvent{
+			{Seq: 8, Event: model.Event{Type: model.EventComment}},
+			{Seq: 9, Event: model.Event{Type: model.EventCheckin}},
+		}
+	})
+	h.clk.Advance(time.Hour)
+	again, err := h.e.SubscribeVerified(context.Background(), subTReq(prA, "w1:p1"))
+	if err != nil {
+		t.Fatalf("resub: %v", err)
+	}
+	if again.Created || again.SubID != info.SubID {
+		t.Errorf("resub = %+v", again)
+	}
+	s, ok := h.liveSub(info.SubID)
+	if !ok {
+		t.Fatal("sub gone")
+	}
+	if len(s.Pending) != 1 || s.Pending[0].Seq != 8 {
+		t.Errorf("pending = %+v", s.Pending)
+	}
+	for _, p := range s.Pending {
+		if p.Event.Type == model.EventCheckin {
+			t.Errorf("check-in still pending: %+v", p)
+		}
+	}
+	if !s.CheckinAt.IsZero() {
+		t.Errorf("CheckinAt = %v, want zero", s.CheckinAt)
+	}
+	if !s.ClockAt.Equal(h.clk.Now()) {
+		t.Errorf("ClockAt = %v", s.ClockAt)
+	}
+}
+
 func TestUnsubscribePane(t *testing.T) {
 	h := newHarness(t)
 	h.sub(prA, "w1:p1")
