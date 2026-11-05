@@ -229,7 +229,7 @@ Plans:
 
 **Wave 3**
 
-- [ ] 05-06-PLAN.md — herdr-plugin manifest (startup + 4 actions), run.sh PATH guard, plugin tests
+- [x] 05-06-PLAN.md — herdr-plugin manifest (startup + 4 actions), run.sh PATH guard, plugin tests
 
 **Wave 4**
 
@@ -263,4 +263,4 @@ Plans:
 | 2. Durable State & GitHub Poller | 12/12 | Complete   | 2026-11-02 |
 | 3. herdr Client & Delivery | 12/12 | Complete   | 2026-11-04 |
 | 4. Daemon, Control Protocol & CLI | 12/12 | Complete   | 2026-11-05 |
-| 5. Packaging, Plugin & Agent Skill | 5/12 | In Progress|  |
+| 5. Packaging, Plugin & Agent Skill | 6/12 | In Progress|  |
