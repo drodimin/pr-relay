@@ -1,0 +1,5 @@
+PANE    PR                EVENTS          POLL  LAST                CHECK-IN  EXPIRES
+w1:p1   o/r#12            all             1m    3m ago (ci.failed)  21h       6d
+w2:p10  octo/widgets#345  review,comment  4m    never               23h59m    7d
+w1:p1   o/r#9             all             16m   2h3m ago (closed)   -         ending: closed
+w3:p2   o/r#7             all             16m   8d ago (comment)    -         ending: expired
