@@ -1,0 +1,4 @@
+o/r#12            events=all             poll=1m   last=3m ago (ci.failed)  check-in in 21h     expires in 6d
+octo/widgets#345  events=review,comment  poll=4m   last=never               check-in in 23h59m  expires in 7d
+o/r#9             events=all             poll=16m  last=2h3m ago (closed)   ending: closed
+o/r#7             events=all             poll=16m  last=8d ago (comment)    ending: expired

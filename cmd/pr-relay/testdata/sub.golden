@@ -1,0 +1,12 @@
+# co-subscriber, all events
+subscribed o/r#12 events=all
+polling every 1m (next in 58s); also watched by: w2:p1
+updates arrive in this pane; unsub: pr-relay unsub https://github.com/o/r/pull/12
+# no co-subscribers, ci mask
+subscribed o/r#12 events=ci.failed,ci.settled (closed always included)
+polling every 1m (next in 58s)
+updates arrive in this pane; unsub: pr-relay unsub https://github.com/o/r/pull/12
+# updated, two co-subscribers
+updated o/r#12 events=all
+polling every 1m (next in 58s); also watched by: w2:p1, /tmp/other.sock:w1:p3
+updates arrive in this pane; unsub: pr-relay unsub https://github.com/o/r/pull/12

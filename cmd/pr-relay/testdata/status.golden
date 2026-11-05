@@ -1,0 +1,42 @@
+# healthy
+daemon: running (version 0.4.0, pid 4242, up 2h3m)
+socket: /run/user/501/pr-relay/pr-relay.sock
+state: /home/u/.local/state/pr-relay
+log: /home/u/.local/state/pr-relay/daemon.log
+auth: ok (GH_TOKEN)
+rate limit: 4321/5000 remaining, resets in 12m, spent 30 in last hour
+subscriptions: 3 on 2 PRs
+herdr:
+  /path/herdr.sock up since 10m ago, 2 pending
+recent cancellations:
+  o/r#12 w1:p1 pane_closed 5m ago
+# degraded
+daemon: running (version 0.4.0, pid 4242, up 2h3m)
+socket: /run/user/501/pr-relay/pr-relay.sock
+state: /home/u/.local/state/pr-relay
+log: /home/u/.local/state/pr-relay/daemon.log
+auth: unauthorized (GH_TOKEN)
+rate limit: 12/5000 remaining, resets in 12m, spent 30 in last hour, intervals stretched x2
+secondary limit until 2026-11-04T12:01:30Z (in 1m)
+subscriptions: 3 on 2 PRs
+herdr:
+  /path/herdr.sock up since 10m ago, 0 pending
+  /other/herdr.sock down since 3m ago, 4 pending
+recent cancellations:
+  none
+quarantined state: /home/u/.local/state/pr-relay/state.json.corrupt-1
+pr errors:
+  a/b#1: forbidden
+  o/r#9: not found
+# no data yet
+daemon: running (version 0.4.0, pid 4242, up 2h3m)
+socket: /run/user/501/pr-relay/pr-relay.sock
+state: /home/u/.local/state/pr-relay
+log: /home/u/.local/state/pr-relay/daemon.log
+auth: no_token
+rate limit: unknown (no GitHub response yet)
+subscriptions: 3 on 2 PRs
+herdr:
+  none
+recent cancellations:
+  none
