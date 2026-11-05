@@ -1,0 +1,36 @@
+# herdr plugin manifest for pr-relay (fields per herdr 0.9.5 schema).
+# Install: herdr plugin install drodimin/pr-relay/herdr-plugin
+# The plugin ships no binary; pr-relay must be on PATH (see run.sh).
+id = "pr-relay"
+name = "pr-relay"
+version = "0.1.0"
+min_herdr_version = "0.9.5"
+description = "Push GitHub PR updates into agent panes; starts the pr-relay daemon"
+platforms = ["linux", "macos"]
+
+[[startup]]
+command = ["sh", "run.sh", "daemon", "--ensure"]
+
+[[actions]]
+id = "status"
+title = "pr-relay: status"
+contexts = ["global"]
+command = ["sh", "run.sh", "status"]
+
+[[actions]]
+id = "list-all"
+title = "pr-relay: list all subscriptions"
+contexts = ["global"]
+command = ["sh", "run.sh", "ls", "--all"]
+
+[[actions]]
+id = "restart"
+title = "pr-relay: restart daemon"
+contexts = ["global"]
+command = ["sh", "run.sh", "daemon", "restart"]
+
+[[actions]]
+id = "install-skill"
+title = "pr-relay: install agent skill"
+contexts = ["global"]
+command = ["sh", "run.sh", "skill", "install"]
