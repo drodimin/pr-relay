@@ -78,6 +78,12 @@ func (f *fakeFetcher) set(key, state string, err error) {
 	}
 }
 
+func (f *fakeFetcher) count() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.calls
+}
+
 func (f *fakeFetcher) setBatchErr(err error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
