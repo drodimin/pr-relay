@@ -98,11 +98,15 @@ type PRView struct {
 	Baselined bool
 }
 
-// Cancellation reasons used by the delivery manager (LIFE-02, LIFE-04).
+// Cancellation reasons. The delivery manager uses the pane ones (LIFE-02,
+// LIFE-04); closed and expired are recorded when the final event of an
+// ending subscription is acked (LIFE-01, LIFE-07, D-14, D-23).
 const (
 	ReasonPaneClosed       = "pane_closed"
 	ReasonPaneGone         = "pane_gone"
 	ReasonIdentityMismatch = "identity_mismatch"
+	ReasonClosed           = "closed"
+	ReasonExpired          = "expired"
 )
 
 // Cancellation records one subscription cancelled by the daemon (D-17). The
@@ -156,6 +160,10 @@ var ErrNotWatched = errors.New("poller: pull request is not watched")
 
 // ErrUnknownSub means no subscription has the given ID.
 var ErrUnknownSub = errors.New("poller: unknown subscription")
+
+// ErrEnded means the subscription is ending (its closed or expired event is
+// queued) and can no longer be kept alive (D-03).
+var ErrEnded = errors.New("poller: subscription has ended; re-subscribe")
 
 // errStale marks a result dropped because its PR record was removed or
 // recreated while the batch was in flight (pitfall 8).
@@ -479,11 +487,17 @@ func (e *Engine) Cancel(subID, reason string) error {
 	c.At = e.now()
 	e.log.Info("subscription cancelled",
 		"sub", c.SubID, "pr", c.PR, "pane", c.PaneID, "socket", c.HerdrSocket, "reason", c.Reason)
+	e.recordCancelLocked(c)
+	return nil
+}
+
+// recordCancelLocked appends c to the cancellation ring, keeping the newest
+// maxCancellations. Callers hold e.mu.
+func (e *Engine) recordCancelLocked(c Cancellation) {
 	e.cancels = append(e.cancels, c)
 	if over := len(e.cancels) - maxCancellations; over > 0 {
 		e.cancels = append([]Cancellation(nil), e.cancels[over:]...)
 	}
-	return nil
 }
 
 // RecentCancellations returns a copy of the newest cancellations, oldest
@@ -507,14 +521,27 @@ func (e *Engine) PRView(key string) (PRView, bool) {
 	return PRView{Ref: rec.Ref, HeadOID: m.HeadOID, Mergeable: m.Mergeable, State: m.State, Baselined: m.Baselined}, true
 }
 
-// Keep resets only the subscription's ClockAt (D-14).
+// Keep resets the subscription's ClockAt, clears CheckinAt and drops any
+// pending check-in, which keep answers (D-03). An ending subscription
+// returns ErrEnded and is left unchanged.
 func (e *Engine) Keep(subID string) error {
 	return e.mutate(func(next *store.State) error {
 		sub := next.Subs[subID]
 		if sub == nil {
 			return ErrUnknownSub
 		}
+		if sub.Ending != "" {
+			return ErrEnded
+		}
 		sub.ClockAt = e.now()
+		sub.CheckinAt = time.Time{}
+		var kept []store.PendingEvent
+		for _, p := range sub.Pending {
+			if p.Event.Type != model.EventCheckin {
+				kept = append(kept, p)
+			}
+		}
+		sub.Pending = kept
 		return nil
 	})
 }
@@ -582,57 +609,124 @@ func (e *Engine) Pending(subID string) (Drain, error) {
 }
 
 // Ack drops pending events with Seq <= upToSeq and clears the drop marker
-// when upToSeq covers it.
+// when upToSeq covers it. When the ack covers an ending subscription's final
+// event, the subscription is deleted and recorded as a cancellation.
 func (e *Engine) Ack(subID string, upToSeq uint64) error {
-	return e.mutate(func(next *store.State) error {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	now := e.now()
+	var ended []Cancellation
+	err := e.mutateLocked(func(next *store.State) error {
 		sub := next.Subs[subID]
 		if sub == nil {
 			return ErrUnknownSub
 		}
-		ackSub(sub, upToSeq)
+		ended = ackIn(next, sub, upToSeq, now, nil)
 		return nil
 	})
+	if err != nil {
+		return err
+	}
+	e.endedLocked(ended)
+	return nil
 }
 
 // AckMany acks several subscriptions in one Save (DLV-04). Subscriptions
 // that no longer exist (cancelled meanwhile) are skipped, not errors. An
 // empty map saves nothing. A failed Save leaves the state unchanged.
+// Subscriptions whose final event is acked are deleted in the same Save
+// (LIFE-01).
 func (e *Engine) AckMany(acks map[string]uint64) error {
 	if len(acks) == 0 {
 		return nil
 	}
-	return e.mutate(func(next *store.State) error {
-		for id, upTo := range acks {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	now := e.now()
+	var ended []Cancellation
+	err := e.mutateLocked(func(next *store.State) error {
+		ids := make([]string, 0, len(acks))
+		for id := range acks {
+			ids = append(ids, id)
+		}
+		sort.Strings(ids)
+		for _, id := range ids {
 			sub := next.Subs[id]
 			if sub == nil {
 				continue
 			}
-			ackSub(sub, upTo)
+			ended = ackIn(next, sub, acks[id], now, ended)
 		}
 		return nil
 	})
+	if err != nil {
+		return err
+	}
+	e.endedLocked(ended)
+	return nil
+}
+
+// ackIn acks sub inside next and, when its final event is covered, removes
+// it from next and appends its Cancellation to ended.
+func ackIn(next *store.State, sub *store.Subscription, upToSeq uint64, now time.Time, ended []Cancellation) []Cancellation {
+	if !ackSub(sub, upToSeq, now) {
+		return ended
+	}
+	c := Cancellation{SubID: sub.ID, PR: sub.PR, HerdrSocket: sub.HerdrSocket, PaneID: sub.PaneID, Reason: sub.Ending}
+	if err := unsubscribeIn(next, sub.ID); err != nil {
+		return ended
+	}
+	return append(ended, c)
+}
+
+// endedLocked logs and records subscriptions removed by an ack, after the
+// Save that removed them succeeded (D-23). Callers hold e.mu.
+func (e *Engine) endedLocked(ended []Cancellation) {
+	for _, c := range ended {
+		c.At = e.now()
+		e.log.Info("subscription ended",
+			"sub", c.SubID, "pr", c.PR, "pane", c.PaneID, "socket", c.HerdrSocket, "reason", c.Reason)
+		e.recordCancelLocked(c)
+	}
 }
 
 // ackSub drops sub's pending events with Seq <= upToSeq and clears the drop
-// marker when upToSeq covers it.
-func ackSub(sub *store.Subscription, upToSeq uint64) {
+// marker when upToSeq covers it. If a real (non-lifecycle) event is among
+// those acked, the inactivity clock restarts: ClockAt and LastEventAt become
+// now and LastEventType that event's type (D-11). Check-in and expired acks
+// never reset it. ended reports that the ack covered the final event of an
+// ending subscription, which the caller must then delete.
+func ackSub(sub *store.Subscription, upToSeq uint64, now time.Time) (ended bool) {
 	var kept []store.PendingEvent
+	var lastReal model.EventType
 	for _, p := range sub.Pending {
 		if p.Seq > upToSeq {
 			kept = append(kept, p)
+			continue
+		}
+		if !p.Event.Type.IsLifecycle() {
+			lastReal = p.Event.Type
 		}
 	}
 	sub.Pending = kept
+	if lastReal != "" {
+		sub.ClockAt = now
+		sub.LastEventAt = now
+		sub.LastEventType = lastReal
+	}
 	if sub.DroppedSeq != 0 && sub.DroppedSeq <= upToSeq {
 		sub.Dropped, sub.DroppedSeq = 0, 0
 	}
+	return sub.EndSeq != 0 && sub.EndSeq <= upToSeq
 }
 
-// panesLocked lists every pane subscribed to key, sorted.
+// panesLocked lists every pane subscribed to key, sorted. Ending
+// subscriptions are on their way out and are not listed, so they count for
+// neither co-subscribers nor the undeliverable check (D-14, D-16).
 func (e *Engine) panesLocked(key string) []PaneRef {
 	var out []PaneRef
 	for _, s := range e.state.Subs {
-		if s.PR == key {
+		if s.PR == key && s.Ending == "" {
 			out = append(out, PaneRef{HerdrSocket: s.HerdrSocket, PaneID: s.PaneID})
 		}
 	}
@@ -1002,6 +1096,20 @@ func (e *Engine) applyRateLimit(now time.Time, err error) bool {
 	return false
 }
 
+// markEnding sets sub's ending marker when its queue holds a closed event:
+// the sub is deleted once that event is acked (LIFE-01, D-16).
+func markEnding(sub *store.Subscription) {
+	if sub.Ending != "" {
+		return
+	}
+	for _, p := range sub.Pending {
+		if p.Event.Type == model.EventClosed {
+			sub.Ending, sub.EndSeq = ReasonClosed, p.Seq
+			return
+		}
+	}
+}
+
 // commit applies stepped results to a clone of the live state and saves it.
 // When nothing durable changed, the Save is skipped and only LastPollAt is
 // updated in memory.
@@ -1084,10 +1192,15 @@ func (e *Engine) commit(steps []stepped, viewer string, now time.Time, forced bo
 				changed = true
 			}
 			for _, sub := range subsByKey[st.key] {
+				if sub.Ending != "" {
+					// An ending sub receives no new PR events (D-14).
+					continue
+				}
 				before := sub.DroppedSeq
 				if appendPending(sub, delivered, &next.Seq, limit, now) > 0 {
 					changed, added = true, true
 				}
+				markEnding(sub)
 				if sub.DroppedSeq != before {
 					// Cap overflow set a new drop marker.
 					changed, added = true, true
