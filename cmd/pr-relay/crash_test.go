@@ -34,14 +34,14 @@ func TestMain(m *testing.M) {
 		os.Exit(1)
 	}
 	binPath = filepath.Join(dir, "pr-relay")
-	out, err := exec.Command("go", "build", "-o", binPath, ".").CombinedOutput()
+	out, err := exec.Command("go", "build", "-buildvcs=false", "-o", binPath, ".").CombinedOutput()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "build pr-relay: %v\n%s", err, out)
 		_ = os.RemoveAll(dir)
 		os.Exit(1)
 	}
 	binOld = filepath.Join(dir, "pr-relay-old")
-	out, err = exec.Command("go", "build", "-ldflags", "-X main.version=0.0.1-old", "-o", binOld, ".").CombinedOutput()
+	out, err = exec.Command("go", "build", "-buildvcs=false", "-ldflags", "-X main.version=0.0.1-old", "-o", binOld, ".").CombinedOutput()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "build old pr-relay: %v\n%s", err, out)
 		_ = os.RemoveAll(dir)

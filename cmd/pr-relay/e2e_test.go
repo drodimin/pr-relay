@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -295,4 +296,66 @@ func TestDaemonRestartCmd(t *testing.T) {
 			t.Fatalf("status after restart %d: %s", i, st)
 		}
 	}
+}
+
+// ensureRE is the single line `daemon --ensure` prints for the dev build.
+var ensureRE = regexp.MustCompile(`^daemon running \(pid \d+, dev\)\n$`)
+
+// TestDaemonEnsure is D-08: the herdr [[startup]] hook command spawns a
+// daemon when none runs, is a no-op when this version already runs, and
+// replaces a daemon of another version. It always returns.
+func TestDaemonEnsure(t *testing.T) {
+	t.Run("spawns when down", func(t *testing.T) {
+		e := newE2E(t, "")
+		r := e.run("", "daemon", "--ensure")
+		if r.code != 0 || !ensureRE.MatchString(r.stdout) {
+			t.Fatalf("ensure: %s", r)
+		}
+		if r.took > 10*time.Second {
+			t.Errorf("ensure took %s", r.took)
+		}
+		if st := e.mustRun("", "status"); !strings.Contains(st.stdout, "daemon: running") {
+			t.Fatalf("status after ensure: %s", st)
+		}
+	})
+
+	t.Run("no-op when running", func(t *testing.T) {
+		e := newE2E(t, "")
+		e.mustRun("", "daemon", "--ensure")
+		before := e.daemonPID()
+		if before == 0 {
+			t.Fatal("no daemon pid after first ensure")
+		}
+		r := e.run("", "daemon", "--ensure")
+		if r.code != 0 || !ensureRE.MatchString(r.stdout) {
+			t.Fatalf("second ensure: %s", r)
+		}
+		if after := e.daemonPID(); after != before {
+			t.Errorf("daemon pid changed %d -> %d on a matching-version ensure", before, after)
+		}
+		if m := pidRE.FindStringSubmatch(r.stdout); m == nil || m[1] != strconv.Itoa(before) {
+			t.Errorf("ensure reported %q, want pid %d", r.stdout, before)
+		}
+	})
+
+	t.Run("restarts mismatched version", func(t *testing.T) {
+		e := newE2E(t, "")
+		if r := e.runBin(binOld, "", "status"); !strings.Contains(r.stdout, "version 0.0.1-old") {
+			t.Fatalf("old daemon not running:\n%s", r)
+		}
+		old := e.daemonPID()
+		if old == 0 {
+			t.Fatal("no pid for the old daemon")
+		}
+		r := e.run("", "daemon", "--ensure")
+		if r.code != 0 || !ensureRE.MatchString(r.stdout) {
+			t.Fatalf("ensure over old daemon: %s", r)
+		}
+		if now := e.daemonPID(); now == old || now == 0 {
+			t.Errorf("daemon pid %d after ensure, old was %d", now, old)
+		}
+		if st := e.mustRun("", "status"); !strings.Contains(st.stdout, "version dev") {
+			t.Errorf("status after ensure is not the dev version:\n%s", st)
+		}
+	})
 }
