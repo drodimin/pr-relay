@@ -85,6 +85,10 @@ pending_cap = 7
 
 [delivery]
 quiet_period = "30s"
+
+[lifecycle]
+checkin_after = "12h"
+expire_after = "3d"
 `)
 	cfg, _, err := Load(p)
 	if err != nil {
@@ -101,6 +105,7 @@ quiet_period = "30s"
 		},
 		Subscriptions: SubsConfig{PendingCap: 7},
 		Delivery:      DeliveryConfig{QuietPeriod: Duration{30 * time.Second}},
+		Lifecycle:     LifecycleConfig{CheckinAfter: Duration{12 * time.Hour}, ExpireAfter: Duration{72 * time.Hour}},
 	}
 	if !reflect.DeepEqual(cfg, want) {
 		t.Fatalf("cfg = %+v, want %+v", cfg, want)
@@ -245,5 +250,93 @@ func TestQuietPeriod(t *testing.T) {
 	_, _, err = Load(writeConfig(t, "[delivery]\nquiet_period = \"6m\"\n"))
 	if err == nil || !strings.Contains(err.Error(), "at most 5m") {
 		t.Fatalf("6m with %s=1: err = %v, want the 5m maximum to still apply", EnvFastPoll, err)
+	}
+}
+
+// TestLifecycleDefaults covers D-15: check-in at 24h, expiry at 7d.
+func TestLifecycleDefaults(t *testing.T) {
+	d := Defaults()
+	if d.Lifecycle.CheckinAfter.Duration != 24*time.Hour {
+		t.Errorf("checkin_after default = %v, want 24h", d.Lifecycle.CheckinAfter)
+	}
+	if d.Lifecycle.ExpireAfter.Duration != 168*time.Hour {
+		t.Errorf("expire_after default = %v, want 168h", d.Lifecycle.ExpireAfter)
+	}
+}
+
+func TestLifecycleLoad(t *testing.T) {
+	t.Setenv(EnvFastPoll, "")
+	cfg, warns, err := Load(writeConfig(t, "[lifecycle]\ncheckin_after = \"12h\"\nexpire_after = \"3d\"\n"))
+	if err != nil || len(warns) != 0 {
+		t.Fatalf("Load: %v, warnings %v", err, warns)
+	}
+	if cfg.Lifecycle.CheckinAfter.Duration != 12*time.Hour || cfg.Lifecycle.ExpireAfter.Duration != 72*time.Hour {
+		t.Fatalf("lifecycle = %+v, want 12h/72h", cfg.Lifecycle)
+	}
+	cfg, _, err = Load(writeConfig(t, "[poll]\nbatch_size = 3\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Lifecycle != Defaults().Lifecycle {
+		t.Fatalf("lifecycle without [lifecycle] = %+v, want defaults", cfg.Lifecycle)
+	}
+}
+
+// TestDayDuration covers the "Nd" suffix accepted by every Duration knob.
+func TestDayDuration(t *testing.T) {
+	ok := map[string]time.Duration{"7d": 168 * time.Hour, "1d": 24 * time.Hour, "90m": 90 * time.Minute, "36h": 36 * time.Hour}
+	for in, want := range ok {
+		var d Duration
+		if err := d.UnmarshalText([]byte(in)); err != nil {
+			t.Errorf("UnmarshalText(%q): %v", in, err)
+			continue
+		}
+		if d.Duration != want {
+			t.Errorf("UnmarshalText(%q) = %v, want %v", in, d.Duration, want)
+		}
+	}
+	for _, in := range []string{"d", "-1d", "1.5d", "0d", "+1d", "1dd", ""} {
+		var d Duration
+		if err := d.UnmarshalText([]byte(in)); err == nil {
+			t.Errorf("UnmarshalText(%q) = %v, want error", in, d.Duration)
+		}
+	}
+}
+
+// TestLifecycleBounds covers LIFE-07 and T-04-04: thresholds are bounded so
+// a typo can neither flood an agent with check-ins nor keep a sub forever.
+func TestLifecycleBounds(t *testing.T) {
+	t.Setenv(EnvFastPoll, "")
+	bad := []struct{ body, sub string }{
+		{"checkin_after = \"30m\"", "config: lifecycle.checkin_after: must be at least 1h0m0s"},
+		{"checkin_after = \"31d\"\nexpire_after = \"60d\"", "lifecycle.checkin_after: must be at most"},
+		{"checkin_after = \"2d\"\nexpire_after = \"2d\"", "must be greater than checkin_after"},
+		{"checkin_after = \"3d\"\nexpire_after = \"2d\"", "must be greater than checkin_after"},
+		{"expire_after = \"91d\"", "lifecycle.expire_after: must be at most"},
+		{"checkin_after = \"2s\"\nexpire_after = \"4s\"", "lifecycle.checkin_after: must be at least"},
+	}
+	for _, tc := range bad {
+		_, _, err := Load(writeConfig(t, "[lifecycle]\n"+tc.body+"\n"))
+		if err == nil || !strings.Contains(err.Error(), tc.sub) {
+			t.Errorf("%q: err = %v, want it to contain %q", tc.body, err, tc.sub)
+		}
+	}
+	for _, body := range []string{"checkin_after = \"1h\"\nexpire_after = \"2h\"", "checkin_after = \"30d\"\nexpire_after = \"90d\""} {
+		if _, _, err := Load(writeConfig(t, "[lifecycle]\n"+body+"\n")); err != nil {
+			t.Errorf("%q: %v", body, err)
+		}
+	}
+
+	t.Setenv(EnvFastPoll, "1")
+	cfg, _, err := Load(writeConfig(t, "[lifecycle]\ncheckin_after = \"2s\"\nexpire_after = \"4s\"\n"))
+	if err != nil {
+		t.Fatalf("2s/4s with %s=1: %v", EnvFastPoll, err)
+	}
+	if cfg.Lifecycle.CheckinAfter.Duration != 2*time.Second || cfg.Lifecycle.ExpireAfter.Duration != 4*time.Second {
+		t.Fatalf("lifecycle = %+v, want 2s/4s", cfg.Lifecycle)
+	}
+	_, _, err = Load(writeConfig(t, "[lifecycle]\ncheckin_after = \"2s\"\nexpire_after = \"2s\"\n"))
+	if err == nil || !strings.Contains(err.Error(), "greater than checkin_after") {
+		t.Fatalf("2s/2s with %s=1: err = %v, want the ordering rule to still apply", EnvFastPoll, err)
 	}
 }

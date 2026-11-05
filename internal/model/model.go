@@ -88,6 +88,88 @@ func ParsePRURL(u string) (PRRef, error) {
 	return ref, nil
 }
 
+// ParsePRLink is the lenient front door for agent-supplied pull request links
+// (SUB-09, DMN-08, D-06). It accepts http or https, a missing scheme, the
+// www. prefix, any host case, a trailing /files, /commits or /checks tab, a
+// query and a fragment. It then rebuilds the canonical URL and hands it to the
+// strict ParsePRURL, which stays the single source of truth for validation.
+// Repository links, issue links, owner/repo#N shorthand and other hosts are
+// rejected with distinct messages.
+func ParsePRLink(s string) (PRRef, error) {
+	orig := strings.TrimSpace(s)
+	bad := func(why string) (PRRef, error) {
+		return PRRef{}, fmt.Errorf("invalid pull request link %q: %s", orig, why)
+	}
+	if orig == "" {
+		return bad("empty")
+	}
+	in := orig
+	if !strings.Contains(in, "://") {
+		low := strings.ToLower(in)
+		ghPrefix := strings.HasPrefix(low, "github.com/") || strings.HasPrefix(low, "www.github.com/")
+		if i := strings.IndexByte(in, '#'); i >= 0 && !ghPrefix && !strings.Contains(in[i+1:], "/") {
+			return PRRef{}, fmt.Errorf("%q is not a link; pass the full pull request URL", orig)
+		}
+		first, _, _ := strings.Cut(in, "/")
+		if !ghPrefix && !strings.ContainsAny(first, ".:") {
+			// Bare "owner/repo[/...]": read it as a github.com path so a
+			// repository gets the repository message, not a host error.
+			in = "github.com/" + in
+		}
+		in = "https://" + in
+	}
+	pu, err := url.Parse(in)
+	if err != nil {
+		return bad("unparseable")
+	}
+	if pu.Scheme != "https" && pu.Scheme != "http" {
+		return bad("scheme must be http or https")
+	}
+	if pu.User != nil {
+		return bad("userinfo not allowed")
+	}
+	host := strings.ToLower(pu.Host)
+	if host == "www.github.com" {
+		host = "github.com"
+	}
+	if pu.Port() != "" || host != "github.com" {
+		return PRRef{}, fmt.Errorf("only github.com is supported (got %s)", pu.Host)
+	}
+	if pu.Opaque != "" || (pu.RawPath != "" && pu.RawPath != pu.Path) {
+		return bad("escaped path not allowed")
+	}
+	var segs []string
+	if p := strings.Trim(pu.Path, "/"); p != "" {
+		segs = strings.Split(p, "/")
+	}
+	for _, seg := range segs {
+		if seg == "" {
+			return bad("empty path segment")
+		}
+	}
+	if len(segs) >= 3 && segs[2] == "issues" {
+		return PRRef{}, fmt.Errorf("%q is an issue, not a pull request", orig)
+	}
+	if len(segs) == 2 {
+		return PRRef{}, fmt.Errorf("%q is a repository; pr-relay watches single pull requests", orig)
+	}
+	if len(segs) < 4 || segs[2] != "pull" {
+		return bad("path must be /{owner}/{repo}/pull/{number}")
+	}
+	if len(segs) > 4 {
+		switch segs[4] {
+		case "files", "commits", "checks":
+		default:
+			return bad("unsupported pull request URL path")
+		}
+	}
+	ref, err := ParsePRURL("https://github.com/" + segs[0] + "/" + segs[1] + "/pull/" + segs[3])
+	if err != nil {
+		return PRRef{}, fmt.Errorf("invalid pull request link %q: %w", orig, err)
+	}
+	return ref, nil
+}
+
 // Actor is a GitHub account. Type is the GraphQL __typename ("User", "Bot",
 // "Mannequin", "Organization"), "Ghost" for a null author, or "" when a commit
 // author is unknown.
@@ -200,6 +282,17 @@ func AllEventTypes() []EventType {
 	return []EventType{EventClosed, EventConflict, EventCommits, EventCIFailed, EventCISettled, EventReview, EventComment}
 }
 
+// Synthetic lifecycle events queued by the poller itself rather than detected
+// on GitHub (LIFE-06, LIFE-07). They are deliberately absent from
+// AllEventTypes, so they can never be selected or masked through --events.
+const (
+	EventCheckin EventType = "checkin"
+	EventExpired EventType = "expired"
+)
+
+// IsLifecycle reports whether t is a synthetic lifecycle event.
+func (t EventType) IsLifecycle() bool { return t == EventCheckin || t == EventExpired }
+
 // Rank is the index of t in AllEventTypes, or 99 if t is unknown.
 func (t EventType) Rank() int {
 	for i, x := range AllEventTypes() {
@@ -248,6 +341,9 @@ type Event struct {
 
 	// closed
 	Merged bool `json:"merged,omitempty"`
+
+	// checkin, expired: the configured idle threshold in seconds (D-12)
+	IdleSecs int64 `json:"idle_secs,omitempty"`
 }
 
 // Memory is the per-PR diff state carried between steps. It is schema v1,
