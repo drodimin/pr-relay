@@ -36,21 +36,30 @@ created: 2026-11-05
 
 ## Per-Task Verification Map
 
-Planner and executor fill in task IDs. These are the requirement-to-test anchors from RESEARCH.md § Validation Architecture:
+Task IDs filled by the planner (2026-11-05). CR-02's shutdown-drain test lives in `internal/ctl` (TestShutdownDrain) rather than `internal/daemon`, because the drain is a ctl.Server property:
 
 | Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
-| TBD | TBD | 1 | D-21 CR-01 | — | sub honours its deadline and persists nothing on failure | unit | `go test ./internal/poller -run Deadline` | ❌ W0 | ⬜ pending |
-| TBD | TBD | 1 | D-21 CR-02 | — | Save after Close errors; shutdown drains handlers | unit | `go test ./internal/store -run TestSaveAfterClose && go test ./internal/daemon -run TestShutdownDrain` | ❌ W0 | ⬜ pending |
-| TBD | TBD | 1 | D-21 CR-03 | — | live re-sub clears the pending check-in | unit | `go test ./internal/poller -run TestResubscribeClearsCheckin` | ❌ W0 | ⬜ pending |
-| TBD | TBD | 1 | D-26 WR-03/08/09 | — | concurrent CLI during shutdown succeeds; slow hello retried; loser does not touch the live log | unit/integration | `go test ./internal/autostart ./internal/daemon -count=1` | ❌ W0 | ⬜ pending |
-| TBD | TBD | — | DIST-01 | T-supply-chain | 4 static targets, checksums | CI snapshot | `goreleaser release --snapshot --clean --skip=publish` (CI) | ❌ W0 | ⬜ pending |
-| TBD | TBD | — | DIST-02 | — | version fallback via ReadBuildInfo | unit | `go test ./cmd/pr-relay -run TestResolveVersion` | ❌ W0 | ⬜ pending |
-| TBD | TBD | — | DIST-03 | — | `daemon --ensure` idempotent / spawn / restart on mismatch | integration | `go test ./cmd/pr-relay -run TestDaemonEnsure` | ❌ W0 | ⬜ pending |
-| TBD | TBD | — | DIST-03 | T-shell | run.sh exits 0 without pr-relay; passes args via "$@" | unit | `go test ./cmd/pr-relay -run TestPluginRunSh` | ❌ W0 | ⬜ pending |
-| TBD | TBD | — | DIST-03 | — | manifest decodes, required fields, ids without dots | unit | `go test ./cmd/pr-relay -run TestPluginManifest` | ❌ W0 | ⬜ pending |
-| TBD | TBD | — | DIST-04 | T-symlink | SKILL.md spec-valid; `skill install --dir` byte-equal, refuses symlinks | unit | `go test ./skills ./cmd/pr-relay -run TestSkill` | ❌ W0 | ⬜ pending |
-| TBD | TBD | — | DIST-04/05 | — | docs examples ⊆ goldens; all event types, commands and flags documented | unit | `go test ./cmd/pr-relay -run TestDocsDrift` | ❌ W0 | ⬜ pending |
+| 05-01-T1 | 05-01 | 1 | D-21 CR-01 | T-05-01, T-05-02 | sub honours its deadline and persists nothing on failure; PollNow bounded | unit | `go test ./internal/poller -run Deadline -race -count=1` | ❌ W0 | ⬜ pending |
+| 05-01-T2 | 05-01 | 1 | D-21 CR-03 | T-05-03 | live re-sub clears the pending check-in | unit | `go test ./internal/poller -run TestResubscribeClearsCheckin -count=1` | ❌ W0 | ⬜ pending |
+| 05-02-T1 | 05-02 | 1 | D-21 CR-02 | T-05-04, T-05-05 | Save after Close errors; Server.Close waits for handlers | unit | `go test ./internal/store -run 'TestSaveAfterClose\|TestSaveCloseRace' -race && go test ./internal/ctl -run TestShutdownDrain -race` | ❌ W0 | ⬜ pending |
+| 05-02-T2 | 05-02 | 1 | D-26 WR-09 | T-05-06 | loser does not touch the live log | unit | `go test ./internal/daemon -run TestLoserDoesNotTouchLog -race` | ❌ W0 | ⬜ pending |
+| 05-03-T1 | 05-03 | 1 | D-26 WR-08 | T-05-07 | slow hello retried; hung daemon names the log | unit | `go test ./internal/autostart -run 'TestSlowHelloRetried\|TestHelloNeverAnswers' -race` | ❌ W0 | ⬜ pending |
+| 05-03-T2 | 05-03 | 1 | D-26 WR-03 | T-05-07 | CLI during shutdown succeeds | unit | `go test ./internal/autostart -run TestConnectDuringShutdown -race -count=3` | ❌ W0 | ⬜ pending |
+| 05-04-T1 | 05-04 | 1 | DIST-04 | T-05-11 | SKILL.md spec-valid, non-prescriptive, agent-agnostic, golden examples | unit | `go test ./skills -count=1` | ❌ W0 | ⬜ pending |
+| 05-04-T2 | 05-04 | 1 | DIST-04 | T-05-09, T-05-10 | `skill install --dir` byte-equal, refuses symlinks, atomic | unit | `go test ./cmd/pr-relay -run TestSkill -count=1` | ❌ W0 | ⬜ pending |
+| 05-05-T1 | 05-05 | 2 | DIST-02 | T-05-15 | version fallback via ReadBuildInfo | unit | `go test ./cmd/pr-relay -run TestResolveVersion -count=1` | ❌ W0 | ⬜ pending |
+| 05-05-T2 | 05-05 | 2 | DIST-03 | T-05-13 | `daemon --ensure` idempotent / spawn / restart on mismatch | integration | `go test ./cmd/pr-relay -run 'TestRunEnsure\|TestDaemonEnsure\|TestAlreadyRunningMsgMatches' -race -count=1` | ❌ W0 | ⬜ pending |
+| 05-06-T1 | 05-06 | 3 | DIST-03 | T-05-16, T-05-18 | manifest matches herdr 0.9.5 schema; no [[build]] | static | `sh -n herdr-plugin/run.sh` | ❌ W0 | ⬜ pending |
+| 05-06-T2 | 05-06 | 3 | DIST-03 | T-05-16, T-05-17 | run.sh exits 0 without pr-relay; passes args via "$@"; strict manifest decode | unit | `go test ./cmd/pr-relay -run 'TestPluginManifest\|TestPluginRunSh' -count=1` | ❌ W0 | ⬜ pending |
+| 05-07-T1..T3 | 05-07 | 4 | DIST-03 | T-05-20 | action output visible (spike + conditional popup) | manual + unit | `go test ./cmd/pr-relay -run TestPlugin -count=1` | ❌ W0 | ⬜ pending |
+| 05-08-T1/T2 | 05-08 | 5 | DIST-04/05 | T-05-22..24 | docs examples ⊆ goldens; all event types, commands, flags, config keys documented | unit | `go test ./cmd/pr-relay -run TestDocsDrift -count=1` | ❌ W0 | ⬜ pending |
+| 05-08-T3 | 05-08 | 5 | D-25 | — | planning-doc drift fixed | grep | `grep -c "SUB-10\|SUB-11" .planning/REQUIREMENTS.md` | ✅ | ⬜ pending |
+| 05-09-T1 | 05-09 | 6 | DIST-01 | T-05-SC, T-05-28 | 4 static targets, checksums, cask xattr hook | snapshot | `go run github.com/goreleaser/goreleaser/v2@v2.20.0 check` + local snapshot | ❌ W0 | ⬜ pending |
+| 05-09-T2 | 05-09 | 6 | DIST-01/02 | T-05-25, T-05-26 | tag-only release, CI snapshot job, scoped permissions | CI | `ruby -ryaml -e '...'` + CI goreleaser job | ❌ W0 | ⬜ pending |
+| 05-10-T1..T3 | 05-10 | 7 | DIST-02 | T-05-29..31 | LICENSE chosen by user; tap repo; PAT secret | manual | `gh secret list -R drodimin/pr-relay` | — | ⬜ pending |
+| 05-11-T1..T3 | 05-11 | 8 | D-22 | T-05-32..34 | full gate + real herdr/GitHub UAT | manual + full suite | `go test -race -count=1 ./...` | ✅ | ⬜ pending |
+| 05-12-T1..T3 | 05-12 | 9 | DIST-01/02/03 | T-05-35..38 | v0.1.0 artifacts verified; brew/go install/download; plugin from GitHub | manual + scripted | `gh release view v0.1.0` | — | ⬜ pending |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 

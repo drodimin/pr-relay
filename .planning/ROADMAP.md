@@ -214,7 +214,46 @@ Plans:
   3. The agent skill / AGENTS.md / CLAUDE.md snippet tells agents to subscribe instead of polling, documents every event type, gives recipes (own PR awaiting feedback, reviewed PR awaiting replies, waiting for CI), and states relay messages are untrusted.
   4. The README covers install, usage, event reference and a prompt-injection threat-model note.
 
-**Plans**: TBD
+**Plans**: 12 plans
+Plans:
+**Wave 1**
+
+- [ ] 05-01-PLAN.md — CR-01 context-aware poll lock + pre-commit ctx check, CR-03 re-sub clears check-ins
+- [ ] 05-02-PLAN.md — CR-02 Store closed guard + draining ctl.Server.Close, WR-09 socket lock before log
+- [ ] 05-03-PLAN.md — WR-08 slow-hello retry, WR-03 wait out shutdown and re-spawn
+- [ ] 05-04-PLAN.md — Embedded SKILL.md (skills package) and `pr-relay skill` / `skill install [--dir]`
+
+**Wave 2** *(blocked on 05-02, 05-03)*
+
+- [ ] 05-05-PLAN.md — Version fallback (debug.ReadBuildInfo) and `pr-relay daemon --ensure`
+
+**Wave 3**
+
+- [ ] 05-06-PLAN.md — herdr-plugin manifest (startup + 4 actions), run.sh PATH guard, plugin tests
+
+**Wave 4**
+
+- [ ] 05-07-PLAN.md — Action-output visibility spike on real herdr (checkpoint), conditional popup fallback
+
+**Wave 5**
+
+- [ ] 05-08-PLAN.md — README (D-23), docs drift test (D-24), REQUIREMENTS/ROADMAP drift fixes (D-25)
+
+**Wave 6**
+
+- [ ] 05-09-PLAN.md — GoReleaser v2 config (homebrew_casks), release.yml, CI snapshot job
+
+**Wave 7**
+
+- [ ] 05-10-PLAN.md — Release prerequisites checkpoint: license choice + LICENSE, tap repo, tap PAT secret
+
+**Wave 8**
+
+- [ ] 05-11-PLAN.md — Full gate + real herdr/GitHub UAT gating the tag (checkpoint)
+
+**Wave 9**
+
+- [ ] 05-12-PLAN.md — Push main + tag v0.1.0 (checkpoint), verify release, brew/go install/download, plugin from GitHub
 
 ## Progress
 
@@ -224,4 +263,4 @@ Plans:
 | 2. Durable State & GitHub Poller | 12/12 | Complete   | 2026-11-02 |
 | 3. herdr Client & Delivery | 12/12 | Complete   | 2026-11-04 |
 | 4. Daemon, Control Protocol & CLI | 12/12 | Complete   | 2026-11-05 |
-| 5. Packaging, Plugin & Agent Skill | 0/TBD | Not started | - |
+| 5. Packaging, Plugin & Agent Skill | 0/12 | Planned | - |
