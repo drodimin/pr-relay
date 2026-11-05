@@ -32,7 +32,7 @@ func newRootCmd() *cobra.Command {
 		},
 	})
 	root.AddCommand(newSubCmd(), newUnsubCmd(), newKeepCmd(), newPollCmd(), newLsCmd(),
-		newStatusCmd(), newResetCmd(), newDaemonCmd())
+		newStatusCmd(), newResetCmd(), newDaemonCmd(), newSkillCmd())
 	root.AddCommand(newDevCmd())
 	return root
 }
