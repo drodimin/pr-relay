@@ -4,10 +4,12 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
 	"github.com/drodimin/pr-relay/internal/ctl"
+	"github.com/drodimin/pr-relay/internal/daemon"
 )
 
 // envMap is an injected getenv over a fixed map.
@@ -215,5 +217,156 @@ func TestKeepAndPollLocalValidation(t *testing.T) {
 	}
 	if fc.methods[0] != ctl.MethodPoll || fc.params[0].(ctl.PollParams).URL != "https://github.com/o/r/pull/1" {
 		t.Errorf("poll call = %v %+v", fc.methods, fc.params)
+	}
+}
+
+func TestLsScope(t *testing.T) {
+	fc := &fakeCaller{reply: func(_ string, _, result any) error {
+		result.(*ctl.LsResult).Rows = []ctl.LsRow{{PR: "o/r#1", PaneID: "w1:p1"}}
+		return nil
+	}}
+	var out bytes.Buffer
+	if err := runLs(context.Background(), &out, fc.call, envMap(inPane), false, ""); err != nil {
+		t.Fatal(err)
+	}
+	p := fc.params[0].(ctl.LsParams)
+	if p.All || p.PaneID != "w1:p1" || p.HerdrSocket != "/s/h.sock" {
+		t.Errorf("in-pane ls params = %+v", p)
+	}
+	if strings.Contains(out.String(), "PANE") {
+		t.Errorf("in-pane ls printed the PANE column: %q", out.String())
+	}
+
+	out.Reset()
+	if err := runLs(context.Background(), &out, fc.call, envMap(inPane), true, ""); err != nil {
+		t.Fatal(err)
+	}
+	if p := fc.params[1].(ctl.LsParams); !p.All {
+		t.Errorf("ls --all params = %+v", p)
+	}
+
+	out.Reset()
+	if err := runLs(context.Background(), &out, fc.call, envMap(outsideHerdr), false, ""); err != nil {
+		t.Fatal(err)
+	}
+	if p := fc.params[2].(ctl.LsParams); !p.All {
+		t.Errorf("outside-herdr ls params = %+v", p)
+	}
+	if !strings.HasPrefix(out.String(), "PANE") {
+		t.Errorf("outside-herdr ls lacks the PANE column: %q", out.String())
+	}
+}
+
+func TestResetConfirm(t *testing.T) {
+	reply := func(_ string, _, result any) error {
+		result.(*ctl.ResetResult).Removed = 3
+		return nil
+	}
+
+	fc := &fakeCaller{reply: reply}
+	var out, errb bytes.Buffer
+	err := runReset(context.Background(), &out, &errb, fc.call, strings.NewReader(""), false, false)
+	if err == nil || err.Error() != "reset drops every subscription on this machine; re-run with --yes" {
+		t.Errorf("non-TTY err = %v", err)
+	}
+	if len(fc.methods) != 0 {
+		t.Errorf("non-TTY reset called %v", fc.methods)
+	}
+
+	if err := runReset(context.Background(), &out, &errb, fc.call, strings.NewReader(""), false, true); err != nil {
+		t.Fatal(err)
+	}
+	if len(fc.methods) != 1 || fc.methods[0] != ctl.MethodReset || out.String() != "removed 3 subscriptions\n" {
+		t.Errorf("--yes: methods %v, stdout %q", fc.methods, out.String())
+	}
+
+	for _, answer := range []string{"y\n", "YES\n"} {
+		fc, out, errb = &fakeCaller{reply: reply}, bytes.Buffer{}, bytes.Buffer{}
+		if err := runReset(context.Background(), &out, &errb, fc.call, strings.NewReader(answer), true, false); err != nil {
+			t.Fatalf("answer %q: %v", answer, err)
+		}
+		if len(fc.methods) != 1 {
+			t.Errorf("answer %q: methods %v", answer, fc.methods)
+		}
+		if !strings.Contains(errb.String(), "[y/N]") {
+			t.Errorf("prompt = %q", errb.String())
+		}
+	}
+
+	for _, answer := range []string{"n\n", "\n", "", "sure\n"} {
+		fc, out, errb = &fakeCaller{reply: reply}, bytes.Buffer{}, bytes.Buffer{}
+		err := runReset(context.Background(), &out, &errb, fc.call, strings.NewReader(answer), true, false)
+		if err == nil || err.Error() != "aborted" {
+			t.Errorf("answer %q: err = %v", answer, err)
+		}
+		if len(fc.methods) != 0 {
+			t.Errorf("answer %q: methods %v", answer, fc.methods)
+		}
+	}
+}
+
+func TestRootCommands(t *testing.T) {
+	root := newRootCmd()
+	have := map[string]bool{}
+	for _, c := range root.Commands() {
+		have[c.Name()] = true
+		if c.Name() == "daemon" {
+			sub := map[string]bool{}
+			for _, s := range c.Commands() {
+				sub[s.Name()] = true
+			}
+			if !sub["stop"] || !sub["restart"] {
+				t.Errorf("daemon subcommands = %v", sub)
+			}
+		}
+		if c.Flags().Lookup("json") != nil {
+			t.Errorf("%s offers --json (D-22)", c.Name())
+		}
+	}
+	for _, name := range []string{"sub", "unsub", "keep", "poll", "ls", "status", "reset", "daemon", "version", "dev"} {
+		if !have[name] {
+			t.Errorf("missing command %q", name)
+		}
+	}
+}
+
+func TestDaemonCommands(t *testing.T) {
+	var out bytes.Buffer
+	if err := runDaemonStop(context.Background(), &out, func(context.Context) (bool, error) { return false, nil }); err != nil {
+		t.Fatal(err)
+	}
+	if out.String() != "daemon not running\n" {
+		t.Errorf("stop idle = %q", out.String())
+	}
+	out.Reset()
+	if err := runDaemonStop(context.Background(), &out, func(context.Context) (bool, error) { return true, nil }); err != nil {
+		t.Fatal(err)
+	}
+	if out.String() != "daemon stopped\n" {
+		t.Errorf("stop running = %q", out.String())
+	}
+
+	out.Reset()
+	run := func(context.Context) error { return fmt.Errorf("wrapped: %w", daemon.ErrAlreadyRunning) }
+	if err := runDaemonForeground(context.Background(), &out, run); err != nil {
+		t.Fatalf("already running err = %v", err)
+	}
+	if out.String() != "daemon already running\n" {
+		t.Errorf("already running = %q", out.String())
+	}
+	boom := errors.New("boom")
+	if err := runDaemonForeground(context.Background(), &out, func(context.Context) error { return boom }); !errors.Is(err, boom) {
+		t.Errorf("run error = %v", err)
+	}
+
+	out.Reset()
+	err := runDaemonRestart(context.Background(), &out,
+		func(context.Context) error { return nil },
+		func(context.Context) (ctl.Peer, error) { return ctl.Peer{PID: 4242}, nil })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out.String() != "daemon restarted (pid 4242)\n" {
+		t.Errorf("restart = %q", out.String())
 	}
 }
