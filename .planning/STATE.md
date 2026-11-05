@@ -4,8 +4,8 @@ milestone: v1.0
 milestone_name: milestone
 status: executing
 stopped_at: Phase 4 context gathered
-last_updated: "2026-11-04T23:54:58.942Z"
-last_activity: 2026-11-04 -- Phase 4 planning complete
+last_updated: "2026-11-04T23:56:04.447Z"
+last_activity: 2026-11-04 -- Phase 04 execution started
 progress:
   total_phases: 5
   completed_phases: 3
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-10-31)
 
 **Core value:** An agent runs `pr-relay sub <PR link>` once, returns immediately, and later receives a relevant PR update in its pane without spending tokens on polling. One poller serves every agent on the machine.
-**Current focus:** Phase 4 — daemon, control protocol & cli
+**Current focus:** Phase 04 — daemon-control-protocol-cli
 
 ## Current Position
 
-Phase: 4
-Plan: Not started
-Status: Ready to execute
-Last activity: 2026-11-04 -- Phase 4 planning complete
+Phase: 04 (daemon-control-protocol-cli) — EXECUTING
+Plan: 1 of 12
+Status: Executing Phase 04
+Last activity: 2026-11-04 -- Phase 04 execution started
 
 Progress: [██████████] 100%
 
