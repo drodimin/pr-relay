@@ -27,8 +27,13 @@ import (
 )
 
 // maskAllows reports whether a subscription with mask wants events of type
-// t. A nil or empty mask means every type.
+// t. A nil or empty mask means every type. closed is always delivered,
+// whatever the mask, because it ends the subscription (D-16); the synthetic
+// lifecycle events (check-in, expired) bypass the mask too.
 func maskAllows(mask []model.EventType, t model.EventType) bool {
+	if t == model.EventClosed || t.IsLifecycle() {
+		return true
+	}
 	if len(mask) == 0 {
 		return true
 	}

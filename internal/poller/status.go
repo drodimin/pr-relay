@@ -1,6 +1,10 @@
 package poller
 
-import "time"
+import (
+	"time"
+
+	"github.com/drodimin/pr-relay/internal/store"
+)
 
 // Auth states reported in AuthState.State.
 const (
@@ -32,7 +36,9 @@ type Status struct {
 	SecondaryUntil   time.Time
 	BatchSize        int
 
-	// PRs counts watched PR records, Subs subscriptions.
+	// PRs counts watched PR records, Subs live subscriptions. Ending subs
+	// (final event queued, not yet acked) are on their way out and are not
+	// counted.
 	PRs, Subs int
 
 	// QuarantinedPath is the corrupt state file set aside at startup (D-20).
@@ -63,7 +69,7 @@ func (e *Engine) Status() Status {
 		SecondaryUntil:  b.SecondaryUntil,
 		BatchSize:       b.BatchSize,
 		PRs:             len(e.state.PRs),
-		Subs:            len(e.state.Subs),
+		Subs:            liveSubs(e.state.Subs),
 		QuarantinedPath: e.quarPath,
 		QuarantinedAt:   e.quarAt,
 		Cancellations:   len(e.cancels),
@@ -89,4 +95,15 @@ func (e *Engine) SetQuarantine(path string, at time.Time) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	e.quarPath, e.quarAt = path, at
+}
+
+// liveSubs counts subscriptions that are not ending.
+func liveSubs(subs map[string]*store.Subscription) int {
+	n := 0
+	for _, s := range subs {
+		if s.Ending == "" {
+			n++
+		}
+	}
+	return n
 }

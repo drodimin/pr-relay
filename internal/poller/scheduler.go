@@ -84,9 +84,13 @@ func (e *Engine) planLocked(now time.Time) ([]string, time.Duration) {
 		b.Remaining = b.Limit
 	}
 
+	// Only live subs drive polling: a PR whose subs are all ending is not
+	// polled, so a reopen after closed is not tracked (D-14, D-16).
 	subscribed := map[string]bool{}
 	for _, s := range e.state.Subs {
-		subscribed[s.PR] = true
+		if s.Ending == "" {
+			subscribed[s.PR] = true
+		}
 	}
 	type cand struct {
 		key  string

@@ -65,7 +65,7 @@ func TestStoreSaveIndented(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !bytes.Contains(b, []byte("\n  \"version\": 2,")) {
+	if !bytes.Contains(b, []byte("\n  \"version\": 3,")) {
 		t.Fatalf("state.json is not indented:\n%s", b)
 	}
 }
@@ -171,7 +171,7 @@ func TestStoreNoQuarantineWhenClean(t *testing.T) {
 
 func TestStoreNewerVersion(t *testing.T) {
 	dir := t.TempDir()
-	content := `{"version": 3, "prs": {}, "subs": {}}`
+	content := `{"version": 4, "prs": {}, "subs": {}}`
 	path := filepath.Join(dir, "state.json")
 	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
 		t.Fatal(err)
@@ -183,7 +183,7 @@ func TestStoreNewerVersion(t *testing.T) {
 	if s != nil || st != nil {
 		t.Fatal("Open must return nil store and state on ErrNewerVersion")
 	}
-	if !strings.Contains(err.Error(), "3") {
+	if !strings.Contains(err.Error(), "4") {
 		t.Fatalf("error %q does not name the found version", err)
 	}
 	b, err := os.ReadFile(path)
@@ -257,7 +257,7 @@ func TestStoreNilMapsBecomeEmpty(t *testing.T) {
 	}
 }
 
-func TestMigrateV1ToV2(t *testing.T) {
+func TestMigrateV1ToV3(t *testing.T) {
 	raw, err := os.ReadFile("testdata/state-v1.json")
 	if err != nil {
 		t.Fatal(err)
@@ -287,8 +287,8 @@ func TestMigrateV1ToV2(t *testing.T) {
 	if p, _ := s.Quarantine(); p != "" {
 		t.Fatalf("v1 file was quarantined to %s", p)
 	}
-	if got.Version != 2 {
-		t.Fatalf("loaded Version = %d, want 2", got.Version)
+	if got.Version != SchemaVersion || SchemaVersion != 3 {
+		t.Fatalf("loaded Version = %d, want 3", got.Version)
 	}
 	if got.Seq != want.Seq || got.NextGen != want.NextGen || got.Viewer != want.Viewer {
 		t.Fatalf("scalars differ: got %d/%d/%q want %d/%d/%q",
@@ -313,10 +313,77 @@ func TestMigrateV1ToV2(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !bytes.Contains(b, []byte("\n  \"version\": 2,")) {
-		t.Fatalf("resaved state.json is not version 2:\n%s", b)
+	if !bytes.Contains(b, []byte("\n  \"version\": 3,")) {
+		t.Fatalf("resaved state.json is not version 3:\n%s", b)
 	}
 	if bytes.Contains(b, []byte("agent_kind")) {
 		t.Fatalf("resaved state.json has agent_kind for migrated subs:\n%s", b)
+	}
+}
+
+func TestMigrateV2ToV3(t *testing.T) {
+	raw, err := os.ReadFile("testdata/state-v2.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var want State
+	if err := json.Unmarshal(raw, &want); err != nil {
+		t.Fatal(err)
+	}
+	if want.Version != 2 {
+		t.Fatalf("fixture version = %d, want 2", want.Version)
+	}
+	normalize(&want)
+	if len(want.Subs) == 0 || len(want.PRs) == 0 {
+		t.Fatal("v2 fixture has no subs or PRs")
+	}
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "state.json")
+	if err := os.WriteFile(path, raw, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	s, got, err := Open(dir)
+	if err != nil {
+		t.Fatalf("Open v2: %v", err)
+	}
+	t.Cleanup(func() { _ = s.Close() })
+	if p, _ := s.Quarantine(); p != "" {
+		t.Fatalf("v2 file was quarantined to %s", p)
+	}
+	if got.Version != 3 {
+		t.Fatalf("loaded Version = %d, want 3", got.Version)
+	}
+	if got.Seq != want.Seq || got.NextGen != want.NextGen || got.Viewer != want.Viewer {
+		t.Fatalf("scalars differ: got %d/%d/%q want %d/%d/%q",
+			got.Seq, got.NextGen, got.Viewer, want.Seq, want.NextGen, want.Viewer)
+	}
+	if !reflect.DeepEqual(got.PRs, want.PRs) {
+		t.Fatalf("PRs differ after migration:\n got %#v\nwant %#v", got.PRs, want.PRs)
+	}
+	if !reflect.DeepEqual(got.Subs, want.Subs) {
+		t.Fatalf("Subs differ after migration:\n got %#v\nwant %#v", got.Subs, want.Subs)
+	}
+	for id, sub := range got.Subs {
+		if !sub.LastEventAt.IsZero() || sub.LastEventType != "" || !sub.CheckinAt.IsZero() ||
+			sub.Ending != "" || sub.EndSeq != 0 {
+			t.Fatalf("sub %s has lifecycle fields after migration: %#v", id, sub)
+		}
+	}
+
+	if err := s.Save(got); err != nil {
+		t.Fatal(err)
+	}
+	b, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains(b, []byte("\n  \"version\": 3,")) {
+		t.Fatalf("resaved state.json is not version 3:\n%s", b)
+	}
+	for _, k := range []string{"last_event_at", "last_event_type", "checkin_at", `"ending"`, "end_seq"} {
+		if bytes.Contains(b, []byte(k)) {
+			t.Fatalf("resaved state.json has %s for migrated subs:\n%s", k, b)
+		}
 	}
 }

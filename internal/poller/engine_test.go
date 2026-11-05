@@ -676,11 +676,14 @@ func TestMergedAtBaseline(t *testing.T) {
 }
 
 // TestClosedAtBaseline: a PR already closed (not merged) at baseline also
-// notifies once, and a further identical poll does not repeat it.
+// notifies once, and a further identical poll does not repeat it. Acking the
+// closed event removes that subscription (LIFE-01), so a second pane keeps
+// the record watched for the repeat poll.
 func TestClosedAtBaseline(t *testing.T) {
 	h := newHarness(t)
 	h.f.mutate(prA, func(pr map[string]any) { pr["state"] = "CLOSED" })
 	info := h.sub(prA, "w1:p1")
+	h.sub(prA, "w1:p2")
 	h.pollNow(prA)
 	d := h.pending(info.SubID)
 	if len(d.Events) != 1 || d.Events[0].Event.Type != model.EventClosed || d.Events[0].Event.Merged {
@@ -690,9 +693,8 @@ func TestClosedAtBaseline(t *testing.T) {
 		t.Fatal(err)
 	}
 	h.clk.Advance(time.Minute)
-	h.pollNow(prA)
-	if d := h.pending(info.SubID); len(d.Events) != 0 {
-		t.Fatalf("closed event repeated: %+v", d.Events)
+	if r := h.pollNow(prA); r.NewEvents != 0 {
+		t.Fatalf("closed event repeated: %d new events", r.NewEvents)
 	}
 }
 

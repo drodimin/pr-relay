@@ -15,8 +15,8 @@ import (
 
 func TestNewState(t *testing.T) {
 	s := NewState()
-	if s.Version != SchemaVersion || SchemaVersion != 2 {
-		t.Fatalf("Version = %d, SchemaVersion = %d, want 2", s.Version, SchemaVersion)
+	if s.Version != SchemaVersion || SchemaVersion != 3 {
+		t.Fatalf("Version = %d, SchemaVersion = %d, want 3", s.Version, SchemaVersion)
 	}
 	if s.PRs == nil || len(s.PRs) != 0 {
 		t.Fatalf("PRs = %#v, want empty non-nil map", s.PRs)
@@ -114,8 +114,13 @@ func fullState() *State {
 				URL: "https://example.invalid/r", Verdict: "APPROVED", InlineCount: 3,
 			}},
 		},
-		Dropped:    5,
-		DroppedSeq: 1,
+		Dropped:       5,
+		DroppedSeq:    1,
+		LastEventAt:   t0.Add(-30 * time.Minute),
+		LastEventType: model.EventComment,
+		CheckinAt:     t0.Add(-10 * time.Minute),
+		Ending:        "closed",
+		EndSeq:        3,
 	}
 	s.Subs[id2] = &Subscription{
 		ID: id2, PR: key, HerdrSocket: "/tmp/herdr.sock", PaneID: "w1:p2",
@@ -176,16 +181,18 @@ func TestStateCloneNil(t *testing.T) {
 	}
 }
 
-func TestStateV2Golden(t *testing.T) {
+// TestStateV3Golden pins the current schema. testdata/state-v2.json is a
+// frozen v2 fixture used by TestMigrateV2ToV3 and must not be regenerated.
+func TestStateV3Golden(t *testing.T) {
 	s := fullState()
 	b, err := json.MarshalIndent(s, "", "  ")
 	if err != nil {
 		t.Fatal(err)
 	}
 	b = append(b, '\n')
-	testutil.Golden(t, "testdata/state-v2.json", b)
+	testutil.Golden(t, "testdata/state-v3.json", b)
 
-	raw, err := os.ReadFile("testdata/state-v2.json")
+	raw, err := os.ReadFile("testdata/state-v3.json")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -219,5 +226,17 @@ func TestSubscriptionAgentKindOmitEmpty(t *testing.T) {
 	}
 	if !strings.Contains(string(b), `"agent_kind":"claude"`) {
 		t.Fatalf("AgentKind not marshalled: %s", b)
+	}
+}
+
+func TestSubscriptionLifecycleOmitEmpty(t *testing.T) {
+	b, err := json.Marshal(&Subscription{ID: "x"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, k := range []string{"last_event_at", "last_event_type", "checkin_at", `"ending"`, "end_seq"} {
+		if strings.Contains(string(b), k) {
+			t.Fatalf("zero %s marshalled: %s", k, b)
+		}
 	}
 }

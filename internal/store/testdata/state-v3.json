@@ -1,0 +1,173 @@
+{
+  "version": 3,
+  "seq": 3,
+  "next_gen": 2,
+  "viewer": "octocat",
+  "prs": {
+    "acme/widgets#42": {
+      "ref": {
+        "owner": "acme",
+        "repo": "widgets",
+        "number": 42
+      },
+      "memory": {
+        "baselined": true,
+        "head_oid": "aaaa",
+        "base_oid": "bbbb",
+        "state": "OPEN",
+        "mergeable": "MERGEABLE",
+        "failed_reported": {
+          "CI/test": true
+        },
+        "settle_candidate": "fp1",
+        "settled_result": "failed:CI/test",
+        "settle_seq": 2,
+        "seen_reviews": {
+          "R1": true
+        },
+        "seen_comments": {
+          "C1": true,
+          "C2": true
+        },
+        "seen_force_pushes": {
+          "F1": true
+        },
+        "reviews_total": 1,
+        "comments_total": 2,
+        "epoch": 4,
+        "commits_total": 5,
+        "comments_watermark": "2026-10-30T11:00:00Z",
+        "reviews_watermark": "2026-10-30T10:00:00Z",
+        "review_comment_totals": {
+          "R1": 3
+        }
+      },
+      "gen": 1,
+      "created_at": "2026-10-29T12:00:00Z",
+      "rate_anchor": "2026-10-30T11:59:00Z",
+      "last_activity": "2026-10-30T11:59:00Z",
+      "last_poll_at": "2026-10-30T12:00:00Z",
+      "last_error": "NOT_FOUND",
+      "terminal": true
+    }
+  },
+  "subs": {
+    "42ff02da5d837bbff14782eda66e4ed3": {
+      "id": "42ff02da5d837bbff14782eda66e4ed3",
+      "pr": "acme/widgets#42",
+      "herdr_socket": "/tmp/herdr.sock",
+      "pane_id": "w1:p1",
+      "agent_session": "sess-1",
+      "agent_kind": "codex",
+      "terminal_id": "term-1",
+      "events": [
+        "ci.failed",
+        "review"
+      ],
+      "created_at": "2026-10-30T11:00:00Z",
+      "updated_at": "2026-10-30T12:00:00Z",
+      "clock_at": "2026-10-30T12:00:00Z",
+      "last_event_at": "2026-10-30T11:30:00Z",
+      "last_event_type": "comment",
+      "checkin_at": "2026-10-30T11:50:00Z",
+      "ending": "closed",
+      "end_seq": 3,
+      "pending": [
+        {
+          "seq": 2,
+          "event": {
+            "type": "ci.failed",
+            "key": "ci.failed:aaaa:CI/test:4",
+            "actor": {
+              "login": "",
+              "type": ""
+            },
+            "check_name": "test",
+            "check_workflow": "CI",
+            "check_url": "https://example.invalid/c",
+            "head_oid": "aaaa"
+          },
+          "detected_at": "2026-10-30T12:00:00Z"
+        },
+        {
+          "seq": 3,
+          "event": {
+            "type": "review",
+            "key": "review:R1",
+            "actor": {
+              "login": "rev",
+              "type": "User"
+            },
+            "url": "https://example.invalid/r",
+            "verdict": "APPROVED",
+            "inline_count": 3
+          },
+          "detected_at": "2026-10-30T12:00:00Z"
+        }
+      ],
+      "dropped": 5,
+      "dropped_seq": 1
+    },
+    "48f9a900ffecef051beaf2ab3fa7d2aa": {
+      "id": "48f9a900ffecef051beaf2ab3fa7d2aa",
+      "pr": "acme/widgets#42",
+      "herdr_socket": "/tmp/herdr.sock",
+      "pane_id": "w1:p2",
+      "agent_session": "",
+      "terminal_id": "",
+      "events": [
+        "closed",
+        "conflict",
+        "commits",
+        "ci.failed",
+        "ci.settled",
+        "review",
+        "comment"
+      ],
+      "created_at": "2026-10-30T12:00:00Z",
+      "updated_at": "2026-10-30T12:00:00Z",
+      "clock_at": "2026-10-30T12:00:00Z",
+      "pending": [
+        {
+          "seq": 1,
+          "event": {
+            "type": "commits",
+            "key": "commits:aaaa",
+            "actor": {
+              "login": "",
+              "type": ""
+            },
+            "head_oid": "aaaa",
+            "old_head_oid": "9999",
+            "count": 2,
+            "force_pushed": true,
+            "authors": [
+              {
+                "login": "dev",
+                "type": "User"
+              }
+            ]
+          },
+          "detected_at": "2026-10-30T11:59:00Z"
+        },
+        {
+          "seq": 2,
+          "event": {
+            "type": "ci.settled",
+            "key": "ci.settled:aaaa:2",
+            "actor": {
+              "login": "",
+              "type": ""
+            },
+            "head_oid": "aaaa",
+            "total": 3,
+            "failed_names": [
+              "CI/test"
+            ]
+          },
+          "detected_at": "2026-10-30T12:00:00Z"
+        }
+      ]
+    }
+  }
+}
