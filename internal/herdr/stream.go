@@ -33,8 +33,8 @@ type Subscription struct {
 // EventKind classifies an Event.
 type EventKind string
 
-// Event kinds. KindReconnected and KindDisconnected are synthesised by
-// Endpoint; the rest decode herdr event lines.
+// Event kinds. KindReconnected, KindResubscribed and KindDisconnected are
+// synthesised by Endpoint; the rest decode herdr event lines.
 const (
 	KindPaneClosed         EventKind = "pane_closed"
 	KindPaneMoved          EventKind = "pane_moved"
@@ -43,9 +43,14 @@ const (
 	KindTabClosed          EventKind = "tab_closed"
 	KindWorkspaceClosed    EventKind = "workspace_closed"
 	KindAgentStatusChanged EventKind = "agent_status_changed"
-	// KindReconnected follows every successful (re)subscribe. Lifecycle
-	// events are not replayed, so consumers re-check their panes.
+	// KindReconnected follows every successful connect after the link was
+	// down (or lost events). Lifecycle events are not replayed, so
+	// consumers re-check their panes.
 	KindReconnected EventKind = "reconnected"
+	// KindResubscribed is emitted after a pane-set resubscribe (SetPanes or
+	// an omitted-pane retry). The link never went down, so UpSince is kept
+	// and consumers must not treat it as a reconnect (IN-03).
+	KindResubscribed EventKind = "resubscribed"
 	// KindDisconnected means the events connection dropped (herdr gone).
 	KindDisconnected EventKind = "disconnected"
 )
