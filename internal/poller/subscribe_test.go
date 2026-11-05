@@ -368,3 +368,73 @@ func TestResubRevivesExpired(t *testing.T) {
 		t.Errorf("closed sub changed: %+v", s)
 	}
 }
+
+func TestUnsubscribePane(t *testing.T) {
+	h := newHarness(t)
+	h.sub(prA, "w1:p1")
+	h.sub(prB, "w1:p1")
+	h.sub(prA, "w1:p2")
+
+	n, err := h.e.UnsubscribePane(sock, "w1:p1", &prA)
+	if err != nil || n != 1 {
+		t.Fatalf("UnsubscribePane(PR1) = %d, %v", n, err)
+	}
+	if got := len(h.e.List()); got != 2 {
+		t.Fatalf("subs = %d, want 2", got)
+	}
+
+	n, err = h.e.UnsubscribePane(sock+"/./", "w1:p1", nil)
+	if err != nil || n != 1 {
+		t.Fatalf("UnsubscribePane(all, uncleaned socket) = %d, %v", n, err)
+	}
+	subs := h.e.List()
+	if len(subs) != 1 || subs[0].PaneID != "w1:p2" || subs[0].PR != store.PRKey(prA) {
+		t.Fatalf("subs = %+v", subs)
+	}
+	h.e.mu.Lock()
+	_, hasB := h.e.state.PRs[store.PRKey(prB)]
+	h.e.mu.Unlock()
+	if hasB {
+		t.Error("PR2 record kept after its last subscription went")
+	}
+
+	saves := h.saver.subTCount()
+	n, err = h.e.UnsubscribePane(sock, "w1:p1", nil)
+	if err != nil || n != 0 {
+		t.Fatalf("repeat = %d, %v", n, err)
+	}
+	if h.saver.subTCount() != saves {
+		t.Error("no-op UnsubscribePane saved")
+	}
+	if len(h.e.RecentCancellations()) != 0 {
+		t.Error("user unsubscribe recorded a cancellation")
+	}
+}
+
+func TestReset(t *testing.T) {
+	h := newHarness(t)
+	h.sub(prA, "w1:p1")
+	h.sub(prB, "w1:p1")
+	h.sub(prA, "w1:p2")
+	n, err := h.e.Reset()
+	if err != nil || n != 3 {
+		t.Fatalf("Reset = %d, %v", n, err)
+	}
+	if len(h.e.List()) != 0 {
+		t.Error("subs left")
+	}
+	h.e.mu.Lock()
+	prs := len(h.e.state.PRs)
+	h.e.mu.Unlock()
+	if prs != 0 {
+		t.Errorf("PR records left: %d", prs)
+	}
+	saves := h.saver.subTCount()
+	n, err = h.e.Reset()
+	if err != nil || n != 0 {
+		t.Fatalf("second Reset = %d, %v", n, err)
+	}
+	if h.saver.subTCount() != saves {
+		t.Error("no-op Reset saved")
+	}
+}
