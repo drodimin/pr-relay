@@ -250,6 +250,46 @@ func TestDaemonStartsAndStops(t *testing.T) {
 	}
 }
 
+// listDir returns the entry names in dir, or nil when dir does not exist.
+func listDir(t *testing.T, dir string) []string {
+	t.Helper()
+	es, err := os.ReadDir(dir)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	var names []string
+	for _, e := range es {
+		names = append(names, e.Name())
+	}
+	return names
+}
+
+// TestLoserDoesNotTouchLog covers review WR-09: a daemon that loses the
+// socket lock must exit before opening, creating or rotating any log file.
+func TestLoserDoesNotTouchLog(t *testing.T) {
+	testEnv(t)
+	dirA := os.Getenv(paths.EnvLogDir)
+	startDaemon(t, Options{})
+	testHostHook = nil
+	beforeA := listDir(t, dirA)
+
+	dirB := filepath.Join(t.TempDir(), "log-loser")
+	t.Setenv(paths.EnvLogDir, dirB)
+	err := Run(context.Background(), Options{Version: testVersion, Fetcher: newFakeFetcher()})
+	if !errors.Is(err, ErrAlreadyRunning) {
+		t.Fatalf("losing Run = %v, want ErrAlreadyRunning", err)
+	}
+	if names := listDir(t, dirB); len(names) != 0 {
+		t.Fatalf("losing daemon created files in its log dir: %v", names)
+	}
+	if afterA := listDir(t, dirA); strings.Join(afterA, ",") != strings.Join(beforeA, ",") {
+		t.Fatalf("live daemon log dir changed: before %v, after %v", beforeA, afterA)
+	}
+}
+
 func TestDaemonAlreadyRunning(t *testing.T) {
 	sock := testEnv(t)
 	startDaemon(t, Options{})
