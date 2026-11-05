@@ -67,6 +67,10 @@ It also closes Phase 4's open code-review criticals (CR-01..03) and fixes the do
   - CR-01: a `sub` or `poll` that waits on `pollMu` with no deadline can persist a `sub` after the CLI was told it failed.
   - CR-02: shutdown closes the store and releases the lock while handlers can still save. `Store.Save` needs a closed guard and a mutex.
   - CR-03: a live re-subscribe keeps a stale pending check-in.
+- **D-26:** **WR-03, WR-08 and WR-09 from `04-REVIEW.md` are also fixed before release work, together with the CR fixes.** The user confirmed this on 2026-11-05 at plan-phase. All three make the herdr `[[startup]]` hook race at herdr start worse:
+  - WR-03: during a shutdown, a concurrent CLI fails with "daemon: already running". `ensureUp` must wait on the socket lock and spawn again.
+  - WR-08: a hello timeout against a slow live daemon is a hard error. Retry with the longer post-spawn timeout before failing.
+  - WR-09: a losing daemon opens or rotates the live daemon's log before it takes the singleton lock. Take the lock first.
 - **D-22:** **Real UAT gates the tag.** The human UAT items in `04-HUMAN-UAT.md`, plus a Phase 5 install-path UAT, must pass before v0.1.0 is pushed. The install-path UAT is: install the binary, install the plugin, start herdr so the hook brings the daemon up, run the skill install, run `sub` from a real pane on a real PR, and receive a real update.
 
 ### README & docs
@@ -94,7 +98,7 @@ It also closes Phase 4's open code-review criticals (CR-01..03) and fixes the do
 - The default directory for `skill install`, and whether to offer `--agent claude|codex|generic` targets. Keep it simple.
 - `min_herdr_version`: probably 0.9.5, the version tested.
 - GoReleaser config details: archive naming, `ldflags`, and changelog grouping.
-- **A LICENSE file is missing** and a public release needs one. Default to MIT unless the user says otherwise, and raise it at the release checkpoint.
+- **A LICENSE file is missing** and a public release needs one. The user chose (2026-11-05) to decide the license at the release human checkpoint. The planner puts the LICENSE choice and the file into that checkpoint and must not pre-pick one.
 - Whether `daemon --ensure` prints anything (a one-line `daemon running (pid N)` is fine).
 - Ordering of plans: CR fixes, then code (`--ensure`, `skill`, version fallback), then plugin and docs, then the release pipeline, then UAT, then the tag.
 
