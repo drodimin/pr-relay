@@ -512,3 +512,97 @@ func TestNewNilEngine(t *testing.T) {
 		t.Error("New without an engine succeeded")
 	}
 }
+
+// TestResubscribedNoPoke covers IN-03: a pane-set resubscribe (here caused
+// by a new subscription on the socket) restarts no worker's quiet window,
+// and only worker-less panes get a pane check.
+func TestResubscribedNoPoke(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		h := newMgrHarness(t, sockA)
+		h.idle(sockA, "w1:p1")
+		h.idle(sockA, "w1:p2")
+		a := h.sub(sockA, "w1:p1", prN(1))
+		b := h.sub(sockA, "w1:p2", prN(2))
+		h.eng.addPending(a.ID, comments(1, 1)...)
+		h.eng.addPending(b.ID, comments(2, 1)...)
+		h.start()
+		h.advance(7 * time.Second)
+
+		// w1:p3 is not in herdr: the new sub resubscribes the socket.
+		gone := h.sub(sockA, "w1:p3", prN(3))
+		select {
+		case h.eng.pending <- struct{}{}:
+		default:
+		}
+		synctest.Wait()
+		if n := h.srv(sockA).Subscribes(); n != 2 {
+			t.Fatalf("subscribes = %d, want 2 (one resubscribe)", n)
+		}
+		h.advance(2 * time.Second) // t=9
+		wantPromptCount(t, h.srv(sockA), 0)
+		h.advance(2 * time.Second) // t=11: quiet windows from t=0 were not restarted
+		wantPromptCount(t, h.srv(sockA), 2)
+		// The worker-less new pane got a check; UpSince was kept, so the
+		// restore grace from t=0 has passed and the missing pane is gone.
+		if got := h.eng.cancelLog(); len(got) != 1 || got[0] != (fakeCancel{SubID: gone.ID, Reason: poller.ReasonPaneGone}) {
+			t.Errorf("cancels = %v, want only %s pane_gone", got, gone.ID)
+		}
+	})
+}
+
+// TestSocketsSnapshot covers D-23: Sockets is safe to call while Run runs.
+func TestSocketsSnapshot(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		h := newMgrHarness(t, sockA)
+		if got := h.m.Sockets(); len(got) != 0 {
+			t.Fatalf("Sockets before Run = %v, want none", got)
+		}
+		h.idle(sockA, testPane)
+		h.sub(sockA, testPane, prN(1))
+		h.sub(sockB, testPane, prN(2)) // no server: stays down
+		t0 := time.Now()
+		done := make(chan struct{})
+		go func() {
+			defer close(done)
+			for i := 0; i < 50; i++ {
+				_ = h.m.Sockets()
+				time.Sleep(10 * time.Millisecond)
+			}
+		}()
+		h.start()
+		h.advance(time.Second)
+		<-done
+		got := h.m.Sockets()
+		if len(got) != 2 {
+			t.Fatalf("Sockets = %v, want 2 entries", got)
+		}
+		if got[0].Socket != sockA || !got[0].Up || !got[0].Since.Equal(t0) {
+			t.Errorf("sockA = %+v, want up since %v", got[0], t0)
+		}
+		if got[1].Socket != sockB || got[1].Up || got[1].Since.IsZero() {
+			t.Errorf("sockB = %+v, want down with a since", got[1])
+		}
+		h.stop()
+		if got := h.m.Sockets(); len(got) != 0 {
+			t.Errorf("Sockets after Run = %v, want none", got)
+		}
+	})
+}
+
+// TestSyncSkipsRelativeSocket covers WR-09: a relative socket (the dev
+// placeholder) never gets an endpoint or a worker.
+func TestSyncSkipsRelativeSocket(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		h := newMgrHarness(t, sockA)
+		s := h.sub("dev", testPane, prN(1))
+		h.eng.addPending(s.ID, comments(1, 1)...)
+		h.start()
+		h.advance(time.Minute)
+		if n := h.dialCount("dev"); n != 0 {
+			t.Errorf("dials to relative socket = %d, want 0", n)
+		}
+		if got := h.m.Sockets(); len(got) != 0 {
+			t.Errorf("Sockets = %v, want none", got)
+		}
+	})
+}
