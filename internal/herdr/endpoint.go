@@ -16,6 +16,12 @@ const (
 	defaultBackoffBase = 250 * time.Millisecond
 	defaultBackoffMax  = 30 * time.Second
 	defaultStableAfter = 60 * time.Second
+	// defaultOmittedRetry matches deliver's default RestoreGrace: herdr
+	// restores panes lazily after a restart (IN-02).
+	defaultOmittedRetry = 10 * time.Second
+	// maxOmittedRetry caps the doubling omitted-pane retry delay, so a pane
+	// that never comes back costs one resubscribe every few minutes.
+	maxOmittedRetry = 5 * time.Minute
 	// maxSubscribeRetries bounds immediate re-list + resubscribe after a
 	// pane_not_found race (Pitfall 2) before falling back to backoff.
 	maxSubscribeRetries = 3
@@ -34,7 +40,7 @@ var globalSubscriptions = []Subscription{
 // EndpointOptions configures NewEndpoint. Socket is required; Dial defaults
 // to DialUnix (with its ownership guard, T-03-19), Logger to a discarding
 // logger, Now to time.Now, Jitter to a uniform value in [-1, 1], and the
-// durations to 250ms, 30s and 60s.
+// durations to 250ms, 30s, 60s and 10s.
 type EndpointOptions struct {
 	Socket string
 	Dial   DialFunc
@@ -49,13 +55,21 @@ type EndpointOptions struct {
 	// StableAfter is how long a connection must last for the backoff to
 	// reset to BackoffBase when it drops.
 	StableAfter time.Duration
+	// OmittedRetry is how long after a connect a watched pane missing from
+	// pane.list is retried with a resubscribe (IN-02). It matches deliver's
+	// RestoreGrace and doubles per retry that still misses a pane, up to
+	// 5 minutes; a pane_agent_detected for an omitted pane retries at once.
+	OmittedRetry time.Duration
 }
 
 // Endpoint keeps one supervised, read-only events.subscribe connection to
 // one herdr socket (DLV-09: run one Endpoint per socket). It reconnects
 // with capped, jittered backoff when herdr goes away (DLV-08) and emits
-// KindReconnected after every successful (re)subscribe so consumers can
-// re-check their panes. It never writes to an open events connection.
+// KindReconnected after every successful connect that follows a drop, a
+// failed connect or events_lost, so consumers can re-check their panes. A
+// resubscribe for a changed pane set (or an omitted-pane retry) keeps
+// UpSince and emits KindResubscribed instead, because the link never went
+// down (IN-03). It never writes to an open events connection.
 type Endpoint struct {
 	client *Client
 	log    *slog.Logger
@@ -64,6 +78,13 @@ type Endpoint struct {
 	base   time.Duration
 	max    time.Duration
 	stable time.Duration
+
+	// omitted is the set of watched panes the last subscribe left out
+	// because pane.list did not have them, and omitDelay the current retry
+	// delay (IN-02). Both are owned by Run.
+	omitted   map[string]bool
+	omitBase  time.Duration
+	omitDelay time.Duration
 
 	running atomic.Bool
 	events  chan Event
@@ -83,15 +104,16 @@ func NewEndpoint(o EndpointOptions) (*Endpoint, error) {
 		return nil, err
 	}
 	ep := &Endpoint{
-		client: c,
-		log:    c.log,
-		now:    o.Now,
-		jitter: o.Jitter,
-		base:   o.BackoffBase,
-		max:    o.BackoffMax,
-		stable: o.StableAfter,
-		events: make(chan Event, eventsCap),
-		resub:  make(chan struct{}, 1),
+		client:   c,
+		log:      c.log,
+		now:      o.Now,
+		jitter:   o.Jitter,
+		base:     o.BackoffBase,
+		max:      o.BackoffMax,
+		stable:   o.StableAfter,
+		omitBase: o.OmittedRetry,
+		events:   make(chan Event, eventsCap),
+		resub:    make(chan struct{}, 1),
 	}
 	if ep.now == nil {
 		ep.now = time.Now
@@ -111,6 +133,10 @@ func NewEndpoint(o EndpointOptions) (*Endpoint, error) {
 	if ep.stable <= 0 {
 		ep.stable = defaultStableAfter
 	}
+	if ep.omitBase <= 0 {
+		ep.omitBase = defaultOmittedRetry
+	}
+	ep.omitDelay = ep.omitBase
 	ep.downSince = ep.now()
 	return ep, nil
 }
@@ -195,6 +221,9 @@ func (ep *Endpoint) Run(ctx context.Context) error {
 	socket := ep.Socket()
 	delay := ep.base
 	attempt := 0
+	// resubbing is set when the last stream ended for a resubscribe while
+	// the link was up; the next successful connect then keeps UpSince.
+	resubbing := false
 	for ctx.Err() == nil {
 		// Every connect snapshots the current pane set, so a poke queued
 		// before this point is already satisfied.
@@ -209,6 +238,7 @@ func (ep *Endpoint) Run(ctx context.Context) error {
 				return nil
 			}
 			ep.log.Warn("herdr events connect failed", "socket", socket, "attempt", attempt, "err", err)
+			resubbing = false
 			ep.markDown(ctx)
 			if !ep.sleep(ctx, ep.jittered(delay)) {
 				return nil
@@ -219,8 +249,17 @@ func (ep *Endpoint) Run(ctx context.Context) error {
 		ep.log.Info("herdr events connected", "socket", socket, "attempt", attempt)
 		attempt = 0
 		connectedAt := ep.now()
-		ep.markUp(connectedAt)
-		if !ep.emit(ctx, Event{Kind: KindReconnected, At: connectedAt}) {
+		kind := KindResubscribed
+		if !resubbing || !ep.Up() {
+			kind = KindReconnected
+			ep.markUp(connectedAt)
+			ep.omitDelay = ep.omitBase
+		}
+		resubbing = false
+		if len(ep.omitted) == 0 {
+			ep.omitDelay = ep.omitBase
+		}
+		if !ep.emit(ctx, Event{Kind: kind, At: connectedAt}) {
 			_ = stream.Close()
 			return nil
 		}
@@ -230,6 +269,7 @@ func (ep *Endpoint) Run(ctx context.Context) error {
 			return nil
 		case endResub:
 			ep.log.Debug("herdr events resubscribing for new pane set", "socket", socket)
+			resubbing = true
 			continue
 		case endLost:
 			ep.log.Info("herdr events lost; resubscribing", "socket", socket)
@@ -277,7 +317,8 @@ func (ep *Endpoint) connect(ctx context.Context) (*Stream, error) {
 
 // subscriptions builds the globals plus one status subscription for each
 // watched pane present in list (Pitfall 2: one missing pane would fail the
-// whole subscribe).
+// whole subscribe). Watched panes left out are recorded in ep.omitted so
+// read can retry them (IN-02).
 func (ep *Endpoint) subscriptions(list []PaneInfo) []Subscription {
 	present := make(map[string]bool, len(list))
 	for _, p := range list {
@@ -287,23 +328,42 @@ func (ep *Endpoint) subscriptions(list []PaneInfo) []Subscription {
 	panes := ep.panes
 	ep.mu.Unlock()
 	subs := slices.Clone(globalSubscriptions)
+	ep.omitted = nil
 	for _, id := range panes {
 		if present[id] {
 			subs = append(subs, Subscription{Type: SubAgentStatusChanged, PaneID: id})
+			continue
 		}
+		if ep.omitted == nil {
+			ep.omitted = map[string]bool{}
+		}
+		ep.omitted[id] = true
 	}
 	return subs
 }
 
 // read forwards events until the stream ends. A watcher closes the stream
-// when ctx is done or SetPanes pokes; nothing is ever written to it.
+// when ctx is done or SetPanes pokes; nothing is ever written to it. When
+// the subscribe left watched panes out, the watcher also arms one timer for
+// omitDelay, and a pane_agent_detected for an omitted pane pokes resub at
+// once; either way the stream ends with endResub (IN-02). Both go through
+// the cap-1 coalescing resub path, so they cannot storm (T-04-06).
 func (ep *Endpoint) read(ctx context.Context, stream *Stream) (endReason, error) {
 	done := make(chan struct{})
-	var resubbed atomic.Bool
+	var resubbed, retried atomic.Bool
+	var retry <-chan time.Time
+	if len(ep.omitted) > 0 {
+		t := time.NewTimer(ep.omitDelay)
+		defer t.Stop()
+		retry = t.C
+	}
 	go func() {
 		select {
 		case <-ctx.Done():
 		case <-ep.resub:
+			resubbed.Store(true)
+		case <-retry:
+			retried.Store(true)
 			resubbed.Store(true)
 		case <-done:
 			return
@@ -312,6 +372,11 @@ func (ep *Endpoint) read(ctx context.Context, stream *Stream) (endReason, error)
 	}()
 	defer close(done)
 	defer stream.Close()
+	defer func() {
+		if retried.Load() {
+			ep.omitDelay = min(ep.omitDelay*2, maxOmittedRetry)
+		}
+	}()
 	for {
 		ev, err := stream.Next()
 		if err != nil {
@@ -336,6 +401,12 @@ func (ep *Endpoint) read(ctx context.Context, stream *Stream) (endReason, error)
 		ev.At = ep.now()
 		if !ep.emit(ctx, ev) {
 			return endCtx, nil
+		}
+		if ev.Kind == KindAgentDetected && ep.omitted[ev.PaneID] {
+			select {
+			case ep.resub <- struct{}{}:
+			default:
+			}
 		}
 	}
 }
