@@ -218,10 +218,10 @@ Plans:
 Plans:
 **Wave 1**
 
-- [ ] 05-01-PLAN.md — CR-01 context-aware poll lock + pre-commit ctx check, CR-03 re-sub clears check-ins
-- [ ] 05-02-PLAN.md — CR-02 Store closed guard + draining ctl.Server.Close, WR-09 socket lock before log
-- [ ] 05-03-PLAN.md — WR-08 slow-hello retry, WR-03 wait out shutdown and re-spawn
-- [ ] 05-04-PLAN.md — Embedded SKILL.md (skills package) and `pr-relay skill` / `skill install [--dir]`
+- [x] 05-01-PLAN.md — CR-01 context-aware poll lock + pre-commit ctx check, CR-03 re-sub clears check-ins
+- [x] 05-02-PLAN.md — CR-02 Store closed guard + draining ctl.Server.Close, WR-09 socket lock before log
+- [x] 05-03-PLAN.md — WR-08 slow-hello retry, WR-03 wait out shutdown and re-spawn
+- [x] 05-04-PLAN.md — Embedded SKILL.md (skills package) and `pr-relay skill` / `skill install [--dir]`
 
 **Wave 2** *(blocked on 05-02, 05-03)*
 
@@ -263,4 +263,4 @@ Plans:
 | 2. Durable State & GitHub Poller | 12/12 | Complete   | 2026-11-02 |
 | 3. herdr Client & Delivery | 12/12 | Complete   | 2026-11-04 |
 | 4. Daemon, Control Protocol & CLI | 12/12 | Complete   | 2026-11-05 |
-| 5. Packaging, Plugin & Agent Skill | 0/12 | Planned | - |
+| 5. Packaging, Plugin & Agent Skill | 4/12 | In Progress|  |
