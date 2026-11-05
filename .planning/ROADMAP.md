@@ -225,7 +225,7 @@ Plans:
 
 **Wave 2** *(blocked on 05-02, 05-03)*
 
-- [ ] 05-05-PLAN.md — Version fallback (debug.ReadBuildInfo) and `pr-relay daemon --ensure`
+- [x] 05-05-PLAN.md — Version fallback (debug.ReadBuildInfo) and `pr-relay daemon --ensure`
 
 **Wave 3**
 
@@ -263,4 +263,4 @@ Plans:
 | 2. Durable State & GitHub Poller | 12/12 | Complete   | 2026-11-02 |
 | 3. herdr Client & Delivery | 12/12 | Complete   | 2026-11-04 |
 | 4. Daemon, Control Protocol & CLI | 12/12 | Complete   | 2026-11-05 |
-| 5. Packaging, Plugin & Agent Skill | 4/12 | In Progress|  |
+| 5. Packaging, Plugin & Agent Skill | 5/12 | In Progress|  |
