@@ -79,12 +79,14 @@ func Message(groups []Group, lim Limits) Result {
 	})
 
 	var items []item
-	total := 0 // renderable lines
+	paired := make([][]uint64, len(gs)) // per group: Seqs R4 cancelled, ascending
+	total := 0                          // renderable lines
 	for gi, g := range gs {
 		if g.Dropped > 0 {
 			items = append(items, item{group: gi, line: render.DroppedLine(g.Ref, g.Dropped), drop: true})
 		}
 		kept := Supersede(g.View, g.Events)
+		paired[gi] = cancelledConflicts(g.Events, kept)
 		evs := make([]model.Event, len(kept))
 		for i, p := range kept {
 			evs[i] = p.Event
@@ -155,11 +157,60 @@ func Message(groups []Group, lim Limits) Result {
 		case h.drop || isFirst(items, cut, gi):
 			// Nothing of this group made it in; it is delivered next time.
 		default:
-			acks[g.SubID] = h.seq - 1
+			acks[g.SubID] = partialAck(items, cut, gi, h.seq, paired[gi])
 		}
 	}
 
 	return Result{Text: strings.Join(lines, "\n"), Acks: acks, Lines: len(lines), Held: held}
+}
+
+// cancelledConflicts returns, in ascending order, the Seqs of the conflict
+// events in events that Supersede dropped from kept. R4 judges conflict
+// events as a set, so any two of them are partners: acking one while the
+// other stays pending changes what R4 decides next time (IN-01). R1-R3 drops
+// need no tracking: their superseding event is kept, so acking the dropped
+// one alone loses nothing.
+func cancelledConflicts(events, kept []store.PendingEvent) []uint64 {
+	keep := make(map[uint64]bool, len(kept))
+	for _, p := range kept {
+		keep[p.Seq] = true
+	}
+	var out []uint64
+	for _, p := range events {
+		if p.Event.Type == model.EventConflict && !keep[p.Seq] {
+			out = append(out, p.Seq)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i] < out[j] })
+	return out
+}
+
+// partialAck is the ack of group gi when the flood guard cut it at the held
+// Seq heldSeq. By default it is heldSeq-1. If that would ack a cancelled
+// conflict event whose partner is still held, the ack is capped just below
+// the lowest such event so the pair stays pending together (IN-01). The cap
+// is only taken when it still acks at least the group's first included
+// event; otherwise heldSeq-1 is kept so every delivery makes progress.
+func partialAck(items []item, cut, gi int, heldSeq uint64, cancelled []uint64) uint64 {
+	ack := heldSeq - 1
+	if len(cancelled) < 2 || cancelled[len(cancelled)-1] < heldSeq {
+		return ack // no cancelled pair straddles the cut
+	}
+	low := cancelled[0]
+	if low >= heldSeq {
+		return ack // the whole set is still pending
+	}
+	var first uint64
+	for i := 0; i < cut; i++ {
+		if items[i].group == gi && !items[i].drop {
+			first = items[i].seq
+			break
+		}
+	}
+	if first == 0 || low-1 < first {
+		return ack
+	}
+	return low - 1
 }
 
 // orderKey is the lowest pending Seq of g, the drop marker included.
