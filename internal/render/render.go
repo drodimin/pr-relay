@@ -23,6 +23,7 @@ package render
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/drodimin/pr-relay/internal/model"
 	"github.com/drodimin/pr-relay/internal/sanitize"
@@ -161,6 +162,22 @@ func (r renderer) line(e model.Event) (string, bool) {
 		if e.Actor.Login != "" {
 			body += " by " + login(e.Actor)
 		}
+	case model.EventCheckin:
+		// D-12: built whole, from the validated ref URL and an integer
+		// duration only, so no sanitize call is needed.
+		l := r.prefix + "check-in: no activity for " + human(idle(e)) +
+			". still needed? keep: pr-relay keep " + r.pr + " | drop: pr-relay unsub " + r.pr
+		if !fits(l) {
+			l = r.prefix + head(e) + " … " + r.pr
+		}
+		return l, true
+	case model.EventExpired:
+		l := r.prefix + "expired: no activity for " + human(idle(e)) +
+			", subscription removed. re-subscribe: pr-relay sub " + r.pr
+		if !fits(l) {
+			l = r.prefix + head(e) + " … " + r.pr
+		}
+		return l, true
 	default:
 		return "", false
 	}
@@ -169,6 +186,23 @@ func (r renderer) line(e model.Event) (string, bool) {
 		l = r.prefix + head(e) + " … " + r.pr
 	}
 	return l, true
+}
+
+func idle(e model.Event) time.Duration { return time.Duration(e.IdleSecs) * time.Second }
+
+// human renders a lifecycle threshold the way a user would write it in
+// config.toml: whole days from 48h up ("7d"), else whole hours ("24h",
+// "36h"), else minutes ("90m").
+func human(d time.Duration) string {
+	const day = 24 * time.Hour
+	switch {
+	case d >= 2*day && d%day == 0:
+		return fmt.Sprintf("%dd", d/day)
+	case d%time.Hour == 0:
+		return fmt.Sprintf("%dh", d/time.Hour)
+	default:
+		return fmt.Sprintf("%dm", d/time.Minute)
+	}
 }
 
 // fits reports whether l fits the cap and carries exactly one tag in folded
