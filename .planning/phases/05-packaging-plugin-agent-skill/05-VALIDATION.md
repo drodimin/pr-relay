@@ -1,8 +1,8 @@
 ---
 phase: 5
 slug: packaging-plugin-agent-skill
-status: draft
-nyquist_compliant: false
+status: planned
+nyquist_compliant: true
 wave_0_complete: false
 created: 2026-11-05
 ---
@@ -53,7 +53,7 @@ Task IDs filled by the planner (2026-11-05). CR-02's shutdown-drain test lives i
 | 05-06-T1 | 05-06 | 3 | DIST-03 | T-05-16, T-05-18 | manifest matches herdr 0.9.5 schema; no [[build]] | static | `sh -n herdr-plugin/run.sh` | ❌ W0 | ⬜ pending |
 | 05-06-T2 | 05-06 | 3 | DIST-03 | T-05-16, T-05-17 | run.sh exits 0 without pr-relay; passes args via "$@"; strict manifest decode | unit | `go test ./cmd/pr-relay -run 'TestPluginManifest\|TestPluginRunSh' -count=1` | ❌ W0 | ⬜ pending |
 | 05-07-T1..T3 | 05-07 | 4 | DIST-03 | T-05-20 | action output visible (spike + conditional popup) | manual + unit | `go test ./cmd/pr-relay -run TestPlugin -count=1` | ❌ W0 | ⬜ pending |
-| 05-08-T1/T2 | 05-08 | 5 | DIST-04/05 | T-05-22..24 | docs examples ⊆ goldens; all event types, commands, flags, config keys documented | unit | `go test ./cmd/pr-relay -run TestDocsDrift -count=1` | ❌ W0 | ⬜ pending |
+| 05-08-T1/T2 | 05-08 | 5 | DIST-04/05 | T-05-22..24 | docs examples (whole lines and backticked spans, incl. events-table cells) ⊆ goldens; mutated table cell fails; all event types, commands, flags, config keys documented | unit | `go test ./cmd/pr-relay -run TestDocsDrift -count=1` | ❌ W0 | ⬜ pending |
 | 05-08-T3 | 05-08 | 5 | D-25 | — | planning-doc drift fixed | grep | `grep -c "SUB-10\|SUB-11" .planning/REQUIREMENTS.md` | ✅ | ⬜ pending |
 | 05-09-T1 | 05-09 | 6 | DIST-01 | T-05-SC, T-05-28 | 4 static targets, checksums, cask xattr hook | snapshot | `go run github.com/goreleaser/goreleaser/v2@v2.20.0 check` + local snapshot | ❌ W0 | ⬜ pending |
 | 05-09-T2 | 05-09 | 6 | DIST-01/02 | T-05-25, T-05-26 | tag-only release, CI snapshot job, scoped permissions | CI | `ruby -ryaml -e '...'` + CI goreleaser job | ❌ W0 | ⬜ pending |
@@ -88,11 +88,11 @@ Task IDs filled by the planner (2026-11-05). CR-02's shutdown-drain test lives i
 
 ## Validation Sign-Off
 
-- [ ] All tasks have `<automated>` verify or Wave 0 dependencies
-- [ ] Sampling continuity: no 3 consecutive tasks without automated verify
-- [ ] Wave 0 covers all MISSING references
-- [ ] No watch-mode flags
-- [ ] Feedback latency < 60s
-- [ ] `nyquist_compliant: true` set in frontmatter
+- [x] All tasks have `<automated>` verify or Wave 0 dependencies
+- [x] Sampling continuity: no 3 consecutive tasks without automated verify
+- [x] Wave 0 covers all MISSING references
+- [x] No watch-mode flags
+- [x] Feedback latency < 60s
+- [x] `nyquist_compliant: true` set in frontmatter
 
-**Approval:** pending
+**Approval:** planner sign-off 2026-11-05 (Wave 0 files are created during execution; wave_0_complete stays false until then)

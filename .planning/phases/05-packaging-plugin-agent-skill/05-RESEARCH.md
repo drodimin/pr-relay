@@ -540,12 +540,12 @@ Add a `goreleaser` job to `ci.yml` that runs `args: release --snapshot --clean -
 | A7 | Action stdout is not surfaced in the herdr TUI | Pitfall 4 | If it is surfaced, the popup panes are unnecessary |
 | A8 | MIT license is acceptable to the user | Discretion | Raise it at the release checkpoint |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **Are herdr action outputs visible?** We know the output is logged (schema `PluginCommandLogInfo`). It is unclear whether the TUI shows it. Recommendation: make an early plugin-plan task that links the plugin and invokes `pr-relay.status`. Add the popup panes only if needed.
-2. **Does the cask `xattr` hook survive Homebrew 7.x policy?** The upstream direction is to discourage it. Recommendation: make brew install plus `pr-relay version` on macOS an explicit gate in the D-22 UAT, with `brews` as the pre-written fallback config.
-3. **How is the plugin manifest version kept in sync?** The plugin `version` is required by herdr but is independent of the binary. Recommendation: hard-code `0.1.0` and add a test that checks it matches a `const pluginVersion` or the README. Bump it on releases that change the manifest. It does not need to track every binary release.
-4. **Are Phase 4 WR items in scope?** WR-03, WR-08 and WR-09 interact with the startup hook (Pitfall 7). Ask the user, or log them as known issues.
+1. **Are herdr action outputs visible?** We know the output is logged (schema `PluginCommandLogInfo`). It is unclear whether the TUI shows it. Recommendation: make an early plugin-plan task that links the plugin and invokes `pr-relay.status`. Add the popup panes only if needed. **RESOLVED:** plan 05-07 runs the link-and-invoke spike first and adds the popup panes only if the spike shows output is not visible.
+2. **Does the cask `xattr` hook survive Homebrew 7.x policy?** The upstream direction is to discourage it. Recommendation: make brew install plus `pr-relay version` on macOS an explicit gate in the D-22 UAT, with `brews` as the pre-written fallback config. **RESOLVED:** plan 05-12's brew install UAT is the explicit gate, with the `brews` fallback config pre-written for use if the cask hook fails.
+3. **How is the plugin manifest version kept in sync?** The plugin `version` is required by herdr but is independent of the binary. Recommendation: hard-code `0.1.0` and add a test that checks it matches a `const pluginVersion` or the README. Bump it on releases that change the manifest. It does not need to track every binary release. **RESOLVED:** plan 05-06 hard-codes the manifest version and adds a test pinning it to a `pluginManifestVersion` const.
+4. **Are Phase 4 WR items in scope?** WR-03, WR-08 and WR-09 interact with the startup hook (Pitfall 7). Ask the user, or log them as known issues. **RESOLVED:** the user included them in scope (D-26); plans 05-02 (WR-09) and 05-03 (WR-08, WR-03) implement them.
 
 ## Environment Availability
 
