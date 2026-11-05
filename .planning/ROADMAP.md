@@ -11,7 +11,7 @@ Design principle: flow-agnostic primitives. Only `--events` selects what a subsc
 - [x] **Phase 1: Toolchain, Spikes & Pure Core** - Go toolchain, runtime spikes, and the pure event/diff/render/sanitize core (completed 2026-11-01)
 - [x] **Phase 2: Durable State & GitHub Poller** - Atomic state store and a rate-limit-safe, deduplicated, adaptive GitHub poller (headless) (completed 2026-11-02)
 - [x] **Phase 3: herdr Client & Delivery** - herdr socket client and per-pane delivery workers that never interrupt or mis-target an agent (gap closure in progress) (completed 2026-11-04)
-- [ ] **Phase 4: Daemon, Control Protocol & CLI** - Single daemon, auto-start, and the `sub`/`unsub`/`keep`/`ls`/`status` CLI with subscription lifecycle
+- [x] **Phase 4: Daemon, Control Protocol & CLI** - Single daemon, auto-start, and the `sub`/`unsub`/`keep`/`ls`/`status` CLI with subscription lifecycle (completed 2026-11-05)
 - [ ] **Phase 5: Packaging, Plugin & Agent Skill** - Cross-platform release, Homebrew tap, herdr plugin, agent skill and README
 
 ## Phase Details
@@ -169,7 +169,7 @@ Plans:
   4. After 24 hours of PR inactivity the agent gets one check-in message offering `pr-relay keep <PR link>` or `unsub`. `keep` resets the clock, and after 7 days of inactivity the subscription is cancelled with one final "expired" message. Both thresholds are configurable.
   5. After a merged or closed notification is delivered, the subscription is removed automatically.
 
-**Plans:** 11/12 plans executed
+**Plans:** 12/12 plans complete
 
 Plans:
 **Wave 1**
@@ -200,7 +200,7 @@ Plans:
 
 **Wave 6** *(blocked on Wave 5 completion)*
 
-- [ ] 04-12-PLAN.md — End-to-end tests for all five success criteria
+- [x] 04-12-PLAN.md — End-to-end tests for all five success criteria
 
 ### Phase 5: Packaging, Plugin & Agent Skill
 
@@ -223,5 +223,5 @@ Plans:
 | 1. Toolchain, Spikes & Pure Core | 9/9 | Complete   | 2026-11-01 |
 | 2. Durable State & GitHub Poller | 12/12 | Complete   | 2026-11-02 |
 | 3. herdr Client & Delivery | 12/12 | Complete   | 2026-11-04 |
-| 4. Daemon, Control Protocol & CLI | 11/12 | In Progress|  |
+| 4. Daemon, Control Protocol & CLI | 12/12 | Complete   | 2026-11-05 |
 | 5. Packaging, Plugin & Agent Skill | 0/TBD | Not started | - |
