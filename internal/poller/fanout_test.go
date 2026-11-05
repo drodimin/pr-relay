@@ -25,7 +25,8 @@ func TestMaskAllows(t *testing.T) {
 	}
 	mask := []model.EventType{model.EventCIFailed}
 	for _, typ := range model.AllEventTypes() {
-		if got, want := maskAllows(mask, typ), typ == model.EventCIFailed; got != want {
+		// closed always passes the mask (D-16).
+		if got, want := maskAllows(mask, typ), typ == model.EventCIFailed || typ == model.EventClosed; got != want {
 			t.Errorf("mask [ci.failed] allows %s = %v, want %v", typ, got, want)
 		}
 	}
