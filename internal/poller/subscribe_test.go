@@ -438,3 +438,94 @@ func TestReset(t *testing.T) {
 		t.Error("no-op Reset saved")
 	}
 }
+
+// TestSubscribeVerifiedDeadline covers review CR-01: a sub waiting on a held
+// poll lock gives up at its deadline and persists nothing, even after the
+// lock is released.
+func TestSubscribeVerifiedDeadline(t *testing.T) {
+	f := &subTFetcher{fn: subTSnapshot("OPEN")}
+	h := subTHarness(t, f)
+	h.e.pollSem <- struct{}{} // a scheduled poll holds the lock
+
+	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
+	start := time.Now()
+	_, err := h.e.SubscribeVerified(ctx, subTReq(prA, "w1:p1"))
+	if err == nil {
+		t.Fatal("SubscribeVerified succeeded with the poll lock held")
+	}
+	if d := time.Since(start); d > time.Second {
+		t.Errorf("SubscribeVerified took %v, want about 200ms", d)
+	}
+	var ve *VerifyError
+	if !errors.As(err, &ve) || ve.Class != ClassTimeout {
+		t.Errorf("err = %v, want a timeout VerifyError", err)
+	}
+
+	<-h.e.pollSem
+	time.Sleep(100 * time.Millisecond)
+	id := store.SubID(sock, "w1:p1", store.PRKey(prA))
+	if _, ok := h.liveSub(id); ok {
+		t.Error("subscription persisted after the caller's deadline")
+	}
+	if n := h.saver.subTCount(); n != 0 {
+		t.Errorf("saves = %d, want 0", n)
+	}
+	if f.count() != 0 {
+		t.Errorf("Batch calls = %d, want 0", f.count())
+	}
+}
+
+// TestSubscribeVerifiedDeadlineAfterAcquire covers the pre-commit check: the
+// caller's context ends while the probe runs, after the lock was acquired,
+// so the probe's result is not committed.
+func TestSubscribeVerifiedDeadlineAfterAcquire(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	open := subTSnapshot("OPEN")
+	f := &subTFetcher{fn: func(c context.Context, refs []model.PRRef) (ghclient.BatchResult, error) {
+		cancel() // the CLI gives up after the probe was answered
+		return open(c, refs)
+	}}
+	h := subTHarness(t, f)
+	_, err := h.e.SubscribeVerified(ctx, subTReq(prA, "w1:p1"))
+	if err == nil {
+		t.Fatal("SubscribeVerified succeeded after its context ended")
+	}
+	if !errors.Is(err, context.Canceled) {
+		t.Errorf("err = %v, want context.Canceled", err)
+	}
+	id := store.SubID(sock, "w1:p1", store.PRKey(prA))
+	if _, ok := h.liveSub(id); ok {
+		t.Error("subscription persisted after the caller's context ended")
+	}
+	h.e.mu.Lock()
+	_, rec := h.e.state.PRs[store.PRKey(prA)]
+	h.e.mu.Unlock()
+	if rec {
+		t.Error("PR record persisted after the caller's context ended")
+	}
+	if n := h.saver.subTCount(); n != 0 {
+		t.Errorf("saves = %d, want 0", n)
+	}
+}
+
+// TestPollNowDeadline covers review CR-01 for polls: PollNow waiting on a
+// held poll lock returns the context error at its deadline.
+func TestPollNowDeadline(t *testing.T) {
+	h := newHarness(t)
+	h.sub(prA, "w1:p1")
+	h.e.pollSem <- struct{}{}
+	defer func() { <-h.e.pollSem }()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
+	start := time.Now()
+	_, err := h.e.PollNow(ctx, prA)
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("err = %v, want context.DeadlineExceeded", err)
+	}
+	if d := time.Since(start); d > time.Second {
+		t.Errorf("PollNow took %v, want about 200ms", d)
+	}
+}
