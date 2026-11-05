@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path/filepath"
 
 	"github.com/drodimin/pr-relay/internal/diff"
 	"github.com/drodimin/pr-relay/internal/ghquery"
@@ -197,4 +198,76 @@ func (e *Engine) subscribeVerifiedCommit(req SubRequest, mask []model.EventType,
 	}
 	e.log.Info("subscribed", "sub", id, "pr", key, "pane", req.PaneID, "created", created, "new_pr", newRecord)
 	return info, true, nil
+}
+
+// UnsubscribePane removes the subscriptions of one pane: the one to pr, or
+// every one when pr is nil (D-24, SUB-05). Socket paths are compared
+// cleaned. PR records go with their last subscription. It returns how many
+// were removed; zero is not an error and saves nothing (idempotent).
+// User-initiated removals are not cancellations and are not recorded in the
+// ring.
+func (e *Engine) UnsubscribePane(socket, pane string, pr *model.PRRef) (int, error) {
+	sock := filepath.Clean(socket)
+	prKey := ""
+	if pr != nil {
+		prKey = store.PRKey(*pr)
+	}
+	n, err := e.removeSubs(func(s *store.Subscription) bool {
+		return filepath.Clean(s.HerdrSocket) == sock && s.PaneID == pane && (pr == nil || s.PR == prKey)
+	})
+	if n > 0 {
+		e.log.Info("subscriptions removed", "count", n, "socket", sock, "pane", pane)
+	}
+	return n, err
+}
+
+// Reset removes every subscription and PR record and returns the count
+// (D-25). The CLI gates it behind confirmation.
+func (e *Engine) Reset() (int, error) {
+	n, err := e.removeSubs(func(*store.Subscription) bool { return true })
+	if n > 0 {
+		e.log.Info("subscriptions removed", "count", n, "pane", "*")
+	}
+	return n, err
+}
+
+// removeSubs removes every subscription match selects, in one save. It
+// iterates the clone, never the live state. Nothing is saved when none
+// matches. The delivery manager is poked so it re-syncs its queues.
+func (e *Engine) removeSubs(match func(*store.Subscription) bool) (int, error) {
+	e.mu.Lock()
+	found := false
+	for _, s := range e.state.Subs {
+		if match(s) {
+			found = true
+			break
+		}
+	}
+	if !found {
+		e.mu.Unlock()
+		return 0, nil
+	}
+	n := 0
+	err := e.mutateLocked(func(next *store.State) error {
+		n = 0
+		var ids []string
+		for id, s := range next.Subs {
+			if match(s) {
+				ids = append(ids, id)
+			}
+		}
+		for _, id := range ids {
+			if err := unsubscribeIn(next, id); err != nil {
+				return err
+			}
+			n++
+		}
+		return nil
+	})
+	e.mu.Unlock()
+	if err != nil {
+		return 0, err
+	}
+	e.pokePending()
+	return n, nil
 }
