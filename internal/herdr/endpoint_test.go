@@ -439,6 +439,96 @@ func TestEventsLost(t *testing.T) {
 	})
 }
 
+// TestResubscribeKeepsUpSince covers IN-03: a pane-set resubscribe is not
+// a reconnect, so UpSince stays and the kind is KindResubscribed. A real
+// drop and reconnect still emits KindReconnected and moves UpSince.
+func TestResubscribeKeepsUpSince(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		srv := herdrtest.New(t)
+		srv.SetPane(agentPane("w1:p1"))
+		srv.SetPane(agentPane("w1:p2"))
+		ep := newEndpoint(t, herdr.EndpointOptions{Dial: srv.Dialer()})
+		ep.SetPanes([]string{"w1:p1"})
+		start(t, ep)
+		wantKind(t, next(t, ep), herdr.KindReconnected)
+		t0 := ep.UpSince()
+
+		time.Sleep(time.Minute)
+		ep.SetPanes([]string{"w1:p1", "w1:p2"})
+		wantKind(t, next(t, ep), herdr.KindResubscribed)
+		if got := ep.UpSince(); !got.Equal(t0) {
+			t.Fatalf("UpSince after resubscribe = %v, want %v", got, t0)
+		}
+		noEvent(t, ep)
+
+		srv.Stop()
+		wantKind(t, next(t, ep), herdr.KindDisconnected)
+		srv.Restart()
+		time.Sleep(time.Second)
+		wantKind(t, next(t, ep), herdr.KindReconnected)
+		if got := ep.UpSince(); !got.After(t0) {
+			t.Fatalf("UpSince after reconnect = %v, want after %v", got, t0)
+		}
+	})
+}
+
+// TestEndpointOmittedPane covers IN-02: a watched pane missing from
+// pane.list at connect is resubscribed after OmittedRetry, or at once when
+// pane_agent_detected arrives for it.
+func TestEndpointOmittedPane(t *testing.T) {
+	t.Run("retry", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			srv := herdrtest.New(t)
+			srv.SetPane(agentPane("w1:p1"))
+			ep := newEndpoint(t, herdr.EndpointOptions{Dial: srv.Dialer()})
+			ep.SetPanes([]string{"w1:p1", "w1:p2"})
+			start(t, ep)
+			wantKind(t, next(t, ep), herdr.KindReconnected)
+			if got, want := srv.LastSubscription(), append(globals(), statusSub("w1:p1")); !reflect.DeepEqual(got, want) {
+				t.Fatalf("subscription = %v, want %v", got, want)
+			}
+
+			srv.SetPane(agentPane("w1:p2"))
+			time.Sleep(9 * time.Second)
+			noEvent(t, ep)
+			time.Sleep(time.Second) // OmittedRetry default 10s
+			wantKind(t, next(t, ep), herdr.KindResubscribed)
+			want := append(globals(), statusSub("w1:p1"), statusSub("w1:p2"))
+			if got := srv.LastSubscription(); !reflect.DeepEqual(got, want) {
+				t.Fatalf("subscription = %v, want %v", got, want)
+			}
+			// Nothing omitted any more: no further resubscribes.
+			time.Sleep(time.Minute)
+			noEvent(t, ep)
+			if n := srv.Subscribes(); n != 2 {
+				t.Fatalf("subscribes = %d, want 2", n)
+			}
+		})
+	})
+	t.Run("agent_detected", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			srv := herdrtest.New(t)
+			srv.SetPane(agentPane("w1:p1"))
+			ep := newEndpoint(t, herdr.EndpointOptions{Dial: srv.Dialer()})
+			ep.SetPanes([]string{"w1:p1", "w1:p2"})
+			start(t, ep)
+			wantKind(t, next(t, ep), herdr.KindReconnected)
+
+			srv.SetPane(herdrtest.PaneState{ID: "w1:p2", TabID: "t1", WorkspaceID: "w1"})
+			srv.DetectAgent("w1:p2", "claude", "s-w1:p2")
+			wantKind(t, next(t, ep), herdr.KindAgentDetected)
+			wantKind(t, next(t, ep), herdr.KindResubscribed)
+			want := append(globals(), statusSub("w1:p1"), statusSub("w1:p2"))
+			if got := srv.LastSubscription(); !reflect.DeepEqual(got, want) {
+				t.Fatalf("subscription = %v, want %v", got, want)
+			}
+			if n := srv.CloseOnWrites(); n != 0 {
+				t.Fatalf("close-on-write = %d, want 0", n)
+			}
+		})
+	})
+}
+
 func TestSetPanesResubscribes(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		srv := herdrtest.New(t)
@@ -450,7 +540,7 @@ func TestSetPanesResubscribes(t *testing.T) {
 		wantKind(t, next(t, ep), herdr.KindReconnected)
 
 		ep.SetPanes([]string{"w1:p2", "w1:p1"})
-		wantKind(t, next(t, ep), herdr.KindReconnected) // no Disconnected first
+		wantKind(t, next(t, ep), herdr.KindResubscribed) // no Disconnected first
 		want := append(globals(), statusSub("w1:p1"), statusSub("w1:p2"))
 		if got := srv.LastSubscription(); !reflect.DeepEqual(got, want) {
 			t.Fatalf("subscription = %v, want %v", got, want)
