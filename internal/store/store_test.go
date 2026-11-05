@@ -4,10 +4,13 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 )
 
@@ -243,6 +246,90 @@ func TestStoreSaveFailureKeepsOldFile(t *testing.T) {
 	_, got := mustOpen(t, dir)
 	if !reflect.DeepEqual(got, want) {
 		t.Fatal("previous state.json did not survive a failed Save")
+	}
+}
+
+// TestSaveAfterClose covers review CR-02: a Save after Close must not write.
+func TestSaveAfterClose(t *testing.T) {
+	dir := t.TempDir()
+	s, _, err := Open(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Save(fullState()); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(dir, stateFile)
+	before, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Save(NewState()); !errors.Is(err, ErrClosed) {
+		t.Fatalf("Save after Close err = %v, want ErrClosed", err)
+	}
+	after, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(before, after) {
+		t.Fatal("state.json changed after Close")
+	}
+	tmps, err := filepath.Glob(filepath.Join(dir, tmpPattern))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(tmps) != 0 {
+		t.Fatalf("temp files left after Save-after-Close: %v", tmps)
+	}
+	if err := s.Close(); err != nil {
+		t.Fatalf("second Close = %v, want nil", err)
+	}
+}
+
+// TestSaveCloseRace runs Saves concurrently with Close; run it under -race.
+// Every Save that starts after Close has returned must report ErrClosed.
+func TestSaveCloseRace(t *testing.T) {
+	dir := t.TempDir()
+	s, _, err := Open(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var closed atomic.Bool
+	var wg sync.WaitGroup
+	errc := make(chan error, 9)
+	for range 8 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for range 50 {
+				wasClosed := closed.Load()
+				err := s.Save(fullState())
+				if wasClosed && !errors.Is(err, ErrClosed) {
+					errc <- fmt.Errorf("Save after Close err = %v, want ErrClosed", err)
+					return
+				}
+				if !wasClosed && err != nil && !errors.Is(err, ErrClosed) {
+					errc <- err
+					return
+				}
+			}
+		}()
+	}
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		if err := s.Close(); err != nil {
+			errc <- err
+		}
+		closed.Store(true)
+	}()
+	wg.Wait()
+	close(errc)
+	for err := range errc {
+		t.Error(err)
 	}
 }
 

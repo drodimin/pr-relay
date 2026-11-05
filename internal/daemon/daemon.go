@@ -133,20 +133,10 @@ func Run(ctx context.Context, o Options) (err error) {
 		return fail(err)
 	}
 
-	lg, err := OpenLog(logDir)
-	if err != nil {
-		return fail(err)
-	}
-	undo = append(undo, func() { _ = lg.Close() })
-	log := lg.Logger()
-	if crash, err := SetCrash(logDir); err != nil {
-		log.Warn("crash file unavailable", "error", err)
-	} else {
-		undo = append(undo, func() { _ = crash.Close() })
-		defer func() { _ = crash.Close() }()
-	}
-
-	// 1. Socket lock: the singleton guard (D-19).
+	// 1. Socket lock: the singleton guard (D-19). It is taken before the log
+	// is opened, so a losing starter never opens, creates or rotates the
+	// live daemon's log or crash file (review WR-09). There is no logger yet:
+	// ErrAlreadyRunning reaches the spawner through fail -> SignalReady.
 	if err := touchLock(sockLock); err != nil {
 		return fail(fmt.Errorf("daemon: socket lock: %w", err))
 	}
@@ -158,10 +148,23 @@ func Run(ctx context.Context, o Options) (err error) {
 	}
 	if !ok {
 		_ = lk.Close()
-		log.Info("another daemon holds the socket lock; exiting", "socket", socket)
 		return fail(ErrAlreadyRunning)
 	}
 	undo = append(undo, func() { _ = lk.Unlock(); _ = lk.Close() })
+
+	lg, err := OpenLog(logDir)
+	if err != nil {
+		return fail(err)
+	}
+	undo = append(undo, func() { _ = lg.Close() })
+	log := lg.Logger()
+	log.Info("socket lock held", "socket", socket)
+	if crash, err := SetCrash(logDir); err != nil {
+		log.Warn("crash file unavailable", "error", err)
+	} else {
+		undo = append(undo, func() { _ = crash.Close() })
+		defer func() { _ = crash.Close() }()
+	}
 
 	// 2. Config and state.
 	cfg, warns, err := config.Load(cfgPath)

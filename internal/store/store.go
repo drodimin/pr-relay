@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/gofrs/flock"
@@ -22,6 +23,11 @@ const (
 // ErrLocked is returned by Open when another process holds the store.
 var ErrLocked = errors.New("store: state is in use by another pr-relay process")
 
+// ErrClosed is returned by Save after Close. Once the lock is released a
+// successor process may own state.json, so a late Save must not write it
+// (review CR-02).
+var ErrClosed = errors.New("store: save after close")
+
 // ErrNotDurable is wrapped by a Save error that happened after the rename:
 // state.json already holds the new state, but the directory fsync that makes
 // the rename durable failed. Callers must treat the new state as committed
@@ -36,7 +42,10 @@ var ErrNewerVersion = errors.New("store: state file was written by a newer pr-re
 // Store owns a state directory for the lifetime of one process. It holds an
 // exclusive flock on state.lock until Close.
 type Store struct {
-	dir             string
+	dir string
+	// mu serialises Save and Close, so a Save never runs after (or while)
+	// the lock is released.
+	mu              sync.Mutex
 	lock            *flock.Flock
 	quarantinedPath string
 	quarantinedAt   time.Time
@@ -217,8 +226,14 @@ func (s *Store) quarantine(path string) (*State, error) {
 // directory so the rename itself is durable. On a failure before the rename
 // the previous state.json is left intact. A failure after the rename (opening,
 // syncing or closing the directory) wraps ErrNotDurable: state.json then
-// already holds st. Save never logs state content.
+// already holds st. Save never logs state content. After Close it returns
+// ErrClosed without creating any file.
 func (s *Store) Save(st *State) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.lock == nil {
+		return ErrClosed
+	}
 	b, err := json.MarshalIndent(st, "", "  ")
 	if err != nil {
 		return fmt.Errorf("store: save: marshal: %w", err)
@@ -271,8 +286,11 @@ func (s *Store) Quarantine() (path string, at time.Time) {
 // Dir returns the state directory.
 func (s *Store) Dir() string { return s.dir }
 
-// Close releases the store lock.
+// Close releases the store lock. It waits for an in-flight Save, and every
+// later Save returns ErrClosed. A second Close returns nil.
 func (s *Store) Close() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	if s.lock == nil {
 		return nil
 	}
