@@ -328,6 +328,35 @@ func TestCloseDrainTimeout(t *testing.T) {
 	})
 }
 
+// TestShutdownDrain covers review CR-02: after the drain timeout Close
+// cancels handlers and then waits a second bounded period for them, so the
+// daemon never closes the store while a handler can still save.
+func TestShutdownDrain(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		const drain = time.Second
+		started := make(chan struct{})
+		var finished atomic.Bool
+		srv, c := newPair(ServerOptions{Handlers: map[string]Handler{
+			MethodStatus: func(ctx context.Context, _ json.RawMessage) (any, error) {
+				close(started)
+				// Ignores cancellation for 1.5x the drain period.
+				time.Sleep(drain * 3 / 2)
+				finished.Store(true)
+				return StatusResult{}, nil
+			},
+		}, MethodTimeout: func(string) time.Duration { return time.Hour }}, "0.4.0")
+		go func() { _, _ = c.Call(context.Background(), MethodStatus, nil, nil) }()
+		<-started
+		err := srv.Close(drain)
+		if !finished.Load() {
+			t.Fatal("Close returned while a handler was still running")
+		}
+		if err == nil || !strings.Contains(err.Error(), "drain timed out") {
+			t.Fatalf("Close err = %v, want drain timed out", err)
+		}
+	})
+}
+
 // shortDir returns a short temp dir so unix socket paths fit in sun_path.
 func shortDir(t *testing.T) string {
 	t.Helper()
