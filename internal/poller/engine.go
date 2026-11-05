@@ -375,57 +375,47 @@ func (e *Engine) Subscribe(req SubRequest) (SubInfo, error) {
 		return SubInfo{}, err
 	}
 	key := store.PRKey(req.PR)
-	id := store.SubID(req.HerdrSocket, req.PaneID, key)
 
 	e.mu.Lock()
 	now := e.now()
+	var id string
 	created := false
 	newRecord := false
-	refiltered := false
 	err = e.mutateLocked(func(next *store.State) error {
-		rec := next.PRs[key]
-		if rec == nil {
+		if next.PRs[key] == nil {
 			next.NextGen++
-			rec = &store.PRRecord{
+			next.PRs[key] = &store.PRRecord{
 				Ref:        req.PR,
 				Gen:        next.NextGen,
 				CreatedAt:  now,
 				RateAnchor: now,
 			}
-			next.PRs[key] = rec
 			newRecord = true
 		}
-		if sub := next.Subs[id]; sub != nil {
-			sub.Events = mask
-			sub.AgentSession = req.AgentSession
-			sub.AgentKind = req.AgentKind
-			sub.TerminalID = req.TerminalID
-			sub.UpdatedAt = now
-			sub.ClockAt = now
-			sub.Pending = refilter(sub.Pending, mask)
-			refiltered = true
-			return nil
-		}
-		created = true
-		next.Subs[id] = &store.Subscription{
-			ID:           id,
-			PR:           key,
-			HerdrSocket:  req.HerdrSocket,
-			PaneID:       req.PaneID,
-			AgentSession: req.AgentSession,
-			AgentKind:    req.AgentKind,
-			TerminalID:   req.TerminalID,
-			Events:       mask,
-			CreatedAt:    now,
-			UpdatedAt:    now,
-			ClockAt:      now,
-		}
-		return nil
+		var err error
+		id, created, err = e.subscribeIn(next, req, mask, now)
+		return err
 	})
 	if err != nil {
 		e.mu.Unlock()
 		return SubInfo{}, err
 	}
+	refiltered := !created
+	info := e.subInfoLocked(req, id, created, now)
+	e.mu.Unlock()
+	if newRecord {
+		e.poke()
+	}
+	if refiltered {
+		e.pokePending()
+	}
+	return info, nil
+}
+
+// subInfoLocked assembles the SubInfo of subscription id after a subscribe.
+// Ending subscriptions are not co-subscribers. Callers hold e.mu.
+func (e *Engine) subInfoLocked(req SubRequest, id string, created bool, now time.Time) SubInfo {
+	key := store.PRKey(req.PR)
 	info := SubInfo{SubID: id, Created: created}
 	for _, p := range e.panesLocked(key) {
 		if p.HerdrSocket == req.HerdrSocket && p.PaneID == req.PaneID {
@@ -436,14 +426,58 @@ func (e *Engine) Subscribe(req SubRequest) (SubInfo, error) {
 	rec := e.state.PRs[key]
 	info.Interval, info.NextPollAt = e.scheduleLocked(rec, now)
 	info.Terminal = rec != nil && rec.Terminal
-	e.mu.Unlock()
-	if newRecord {
-		e.poke()
+	return info
+}
+
+// subscribeIn creates or updates the subscription of (HerdrSocket, PaneID,
+// PR) in next, whose PR record must already exist. An existing subscription
+// has its mask replaced, its pending queue re-filtered and its clock reset.
+// An expired-ending one is revived: its ending marker and check-in are
+// cleared and its queued expired and check-in events dropped (D-02, D-14).
+// A closed-ending one cannot be revived and returns a pr_closed
+// *VerifyError. Callers hold e.mu.
+func (e *Engine) subscribeIn(next *store.State, req SubRequest, mask []model.EventType, now time.Time) (id string, created bool, err error) {
+	key := store.PRKey(req.PR)
+	id = store.SubID(req.HerdrSocket, req.PaneID, key)
+	if sub := next.Subs[id]; sub != nil {
+		switch sub.Ending {
+		case ReasonClosed:
+			return id, false, &VerifyError{Class: ClassPRClosed, Err: errPRClosed}
+		case ReasonExpired:
+			sub.Ending, sub.EndSeq = "", 0
+			sub.CheckinAt = time.Time{}
+			kept := sub.Pending[:0:0]
+			for _, p := range sub.Pending {
+				if p.Event.Type == model.EventExpired || p.Event.Type == model.EventCheckin {
+					continue
+				}
+				kept = append(kept, p)
+			}
+			sub.Pending = kept
+		}
+		sub.Events = mask
+		sub.AgentSession = req.AgentSession
+		sub.AgentKind = req.AgentKind
+		sub.TerminalID = req.TerminalID
+		sub.UpdatedAt = now
+		sub.ClockAt = now
+		sub.Pending = refilter(sub.Pending, mask)
+		return id, false, nil
 	}
-	if refiltered {
-		e.pokePending()
+	next.Subs[id] = &store.Subscription{
+		ID:           id,
+		PR:           key,
+		HerdrSocket:  req.HerdrSocket,
+		PaneID:       req.PaneID,
+		AgentSession: req.AgentSession,
+		AgentKind:    req.AgentKind,
+		TerminalID:   req.TerminalID,
+		Events:       mask,
+		CreatedAt:    now,
+		UpdatedAt:    now,
+		ClockAt:      now,
 	}
-	return info, nil
+	return id, true, nil
 }
 
 // Unsubscribe removes a subscription. The PR record goes with the last one.
