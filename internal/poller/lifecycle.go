@@ -1,8 +1,11 @@
 package poller
 
 import (
+	"context"
+	"errors"
 	"sort"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/drodimin/pr-relay/internal/model"
@@ -146,4 +149,63 @@ func (e *Engine) LifecycleDue(s store.Subscription) (checkinDue, expiresAt time.
 	checkinDue = laterOf(s.ClockAt, s.CheckinAt).Add(e.cfg.Lifecycle.CheckinAfter.Duration)
 	expiresAt = s.ClockAt.Add(e.cfg.Lifecycle.ExpireAfter.Duration)
 	return checkinDue, expiresAt
+}
+
+// lifeRunning guards against a second concurrent RunLifecycle per Engine.
+// It lives here, not as an Engine field, so the lifecycle loop stays in
+// this file.
+var lifeRunning sync.Map
+
+// errLifeRunning is returned by a second concurrent RunLifecycle.
+var errLifeRunning = errors.New("poller: lifecycle already running")
+
+// defaultLifeEvery is used when RunLifecycle is given a non-positive every.
+const defaultLifeEvery = time.Minute
+
+// RunLifecycle runs LifecycleTick every every until ctx ends, after waiting
+// grace first. The grace stops a machine that was off for longer than
+// expire_after from mass-expiring subscriptions before polling has caught up
+// (T-04-35). A failed tick is logged and retried on the next one; it never
+// stops the loop (D-18). Cancelling ctx returns nil. A second concurrent
+// call on the same Engine returns an error.
+func (e *Engine) RunLifecycle(ctx context.Context, grace, every time.Duration) error {
+	if _, loaded := lifeRunning.LoadOrStore(e, struct{}{}); loaded {
+		return errLifeRunning
+	}
+	defer lifeRunning.Delete(e)
+	if every <= 0 {
+		every = defaultLifeEvery
+	}
+	if !lifeSleep(ctx, grace) {
+		return nil
+	}
+	for ctx.Err() == nil {
+		// Round(0) strips the monotonic reading, so comparisons with
+		// persisted times are wall-clock (pitfall 11).
+		now := e.now().Round(0)
+		if err := e.LifecycleTick(now); err != nil {
+			e.log.Error("lifecycle tick failed", "err", err)
+		}
+		if !lifeSleep(ctx, every) {
+			return nil
+		}
+	}
+	return nil
+}
+
+// lifeSleep waits for d or ctx and reports false when ctx ended. Unlike
+// Engine.sleep it neither caps d at maxSleep nor reads the scheduler's wake
+// channel, which would steal wakes meant for Run.
+func lifeSleep(ctx context.Context, d time.Duration) bool {
+	if d <= 0 {
+		return ctx.Err() == nil
+	}
+	t := time.NewTimer(d)
+	defer t.Stop()
+	select {
+	case <-ctx.Done():
+		return false
+	case <-t.C:
+		return true
+	}
 }
