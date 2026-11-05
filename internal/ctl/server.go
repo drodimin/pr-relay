@@ -124,7 +124,10 @@ func (s *Server) ServeConn(c net.Conn) {
 
 // Close stops accepting connections and waits up to drain for in-flight
 // requests to finish. Handlers still running after drain have their context
-// cancelled and Close reports a timeout.
+// cancelled, Close waits up to drain once more for them to return, and then
+// reports a timeout. The second wait means callers can release resources
+// handlers use (the store, the socket lock) only after handlers have
+// returned, unless a handler ignores cancellation for longer (review CR-02).
 func (s *Server) Close(drain time.Duration) error {
 	s.mu.Lock()
 	s.closed = true
@@ -147,6 +150,12 @@ func (s *Server) Close(drain time.Duration) error {
 		return err
 	case <-t.C:
 		s.cancel()
+		t2 := time.NewTimer(drain)
+		defer t2.Stop()
+		select {
+		case <-done:
+		case <-t2.C:
+		}
 		return fmt.Errorf("ctl: drain timed out after %s", drain)
 	}
 }
