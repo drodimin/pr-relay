@@ -12,14 +12,13 @@ An agent runs `pr-relay sub https://github.com/owner/repo/pull/123` once, return
 
 ### Validated
 
-(None yet — ship to validate)
+- [x] Single local daemon per machine with one GitHub poller; subscriptions deduplicated per PR (N agents on one PR = one poll) — Validated in Phase 4: Daemon, Control Protocol & CLI (end-to-end tests against fakes; real-pane UAT pending)
+- [x] `pr-relay sub <PR link> [--events ...] [--pane ID]` returns immediately; the pane is auto-detected from the herdr environment; only single-PR links are accepted (no whole-repo subscriptions) — Validated in Phase 4: Daemon, Control Protocol & CLI (end-to-end tests against fakes; real-pane UAT pending)
+- [x] `pr-relay unsub` and `pr-relay ls` (list subscriptions) — Validated in Phase 4: Daemon, Control Protocol & CLI (end-to-end tests against fakes; real-pane UAT pending)
+- [x] CLI auto-starts the daemon if it isn't running — Validated in Phase 4: Daemon, Control Protocol & CLI (end-to-end tests against fakes; real-pane UAT pending)
 
 ### Active
 
-- [ ] Single local daemon per machine with one GitHub poller; subscriptions deduplicated per PR (N agents on one PR = one poll)
-- [ ] `pr-relay sub <PR link> [--events ...] [--pane ID]` returns immediately; the pane is auto-detected from the herdr environment; only single-PR links are accepted (no whole-repo subscriptions)
-- [ ] `pr-relay unsub` and `pr-relay ls` (list subscriptions)
-- [ ] CLI auto-starts the daemon if it isn't running
 - [ ] Events: CI check status changes (failing check names + links); reviews submitted (approved / changes requested); new review comments and issue comments; merge-state / conflict changes; new commits pushed; PR merged / closed
 - [ ] Own-activity exclusion: items authored by the gh-authenticated user are filtered out by default; per-subscription opt-in to include them
 - [ ] Push delivery via herdr `agent.prompt` with terse messages (what changed + names + URLs; the agent fetches details itself)
@@ -90,4 +89,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-11-04 after Phase 3 (herdr client and delivery: idle-gated, coalesced, supersede-aware push into agent panes across multiple herdr sessions, with no loss across a herdr restart; verified by tests and a live scratch-session SC3 run. Still not user-facing until the Phase 4 daemon and sub/unsub/ls CLI, so no Active item moves to Validated)*
+*Last updated: 2026-11-05 after Phase 4 (single self-managing daemon with a version-gated control protocol, auto-start, and the sub/unsub/keep/poll/ls/status/reset CLI with check-in, expiry and removal on merge/close; all 5 success criteria proven end to end against fakes. Real herdr/GitHub UAT and code-review criticals CR-01..03 still open)*
