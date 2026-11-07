@@ -4,13 +4,13 @@ milestone: v1.0
 milestone_name: milestone
 status: executing
 stopped_at: Phase 5 context gathered
-last_updated: "2026-11-07T14:59:27.697Z"
+last_updated: "2026-11-07T22:37:52.559Z"
 last_activity: 2026-11-07
 progress:
   total_phases: 5
   completed_phases: 4
   total_plans: 57
-  completed_plans: 54
+  completed_plans: 55
   percent: 80
 ---
 
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-10-31)
 ## Current Position
 
 Phase: 05 (packaging-plugin-agent-skill) — EXECUTING
-Plan: 10 of 12
+Plan: 11 of 12
 Status: Ready to execute
 Last activity: 2026-11-07
 
-Progress: [██████████] 95%
+Progress: [██████████] 96%
 
 ## Performance Metrics
 
@@ -59,6 +59,7 @@ Progress: [██████████] 95%
 | Phase 03 P12 | 45min | 2 tasks | 2 files |
 | Phase 05 P07 | 15m | 3 tasks | 3 files |
 | Phase 05 P09 | 15m | 2 tasks | 4 files |
+| Phase 05 P10 | 10m | 2 tasks | 10 files |
 
 ## Accumulated Context
 
@@ -77,6 +78,7 @@ Recent decisions affecting current work:
 - [Phase 05]: 05-07: herdr TUI has no plugin action menu; README (05-08) must document a [[keys.command]] plugin_action keybinding
 - [Phase 05]: 05-09: homebrew_casks with on_macos xattr postflight step (no brews); archive name pr-relay_<version>_<os>_<arch>.tar.gz
 - [Phase 05]: 05-09: tap token secret only in tag-triggered release.yml; CI snapshot uses literal dummy
+- [Phase 05]: 05-10: License MIT-0 (Copyright 2026 drodimin); Homebrew dropped for v0.1.0 (no tap repo, no tap PAT, no homebrew_casks)
 
 ### Pending Todos
 
@@ -95,6 +97,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-11-07T14:59:22.383Z
+Last session: 2026-11-07T22:37:47.734Z
 Stopped at: Phase 5 context gathered
 Resume file: None
