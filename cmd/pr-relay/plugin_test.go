@@ -18,7 +18,7 @@ import (
 const pluginManifestVersion = "0.1.0"
 
 // pluginMissingMsg must equal the D-10 line printed by herdr-plugin/run.sh.
-const pluginMissingMsg = "pr-relay not found on PATH; install via brew install drodimin/tap/pr-relay, go install github.com/drodimin/pr-relay/cmd/pr-relay@latest, or a release download"
+const pluginMissingMsg = "pr-relay not found on PATH; install via go install github.com/drodimin/pr-relay/cmd/pr-relay@latest, or a release download"
 
 const (
 	pluginManifestPath = "../../herdr-plugin/herdr-plugin.toml"

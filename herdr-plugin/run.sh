@@ -4,7 +4,7 @@
 #   --open PANE_ID  open this plugin's popup pane PANE_ID (manifest [[panes]] id)
 #   --hold          run pr-relay, then wait for Enter so the popup stays readable
 # Otherwise this is the PATH guard: a missing pr-relay logs one line and exits 0.
-missing_msg="pr-relay not found on PATH; install via brew install drodimin/tap/pr-relay, go install github.com/drodimin/pr-relay/cmd/pr-relay@latest, or a release download"
+missing_msg="pr-relay not found on PATH; install via go install github.com/drodimin/pr-relay/cmd/pr-relay@latest, or a release download"
 
 case "$1" in
 --open)

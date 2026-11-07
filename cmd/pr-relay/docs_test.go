@@ -253,7 +253,6 @@ func TestDocsDrift(t *testing.T) {
 	t.Run("install", func(t *testing.T) {
 		readme := readDoc(t, readmePath)
 		for _, s := range []string{
-			"brew install drodimin/tap/pr-relay",
 			"go install github.com/drodimin/pr-relay/cmd/pr-relay@latest",
 			"herdr plugin install drodimin/pr-relay/herdr-plugin",
 			"pr-relay skill install",
@@ -264,8 +263,9 @@ func TestDocsDrift(t *testing.T) {
 				t.Errorf("README.md does not contain %q", s)
 			}
 		}
-		if strings.Contains(strings.ToLower(readme), "homebrew avoids quarantine") {
-			t.Errorf("README.md claims Homebrew avoids quarantine")
+		// Homebrew was dropped for v0.1.0 (user decision 2026-11-07).
+		if strings.Contains(strings.ToLower(readme), "brew") {
+			t.Errorf("README.md mentions Homebrew, which is not a v0.1.0 install path")
 		}
 	})
 }

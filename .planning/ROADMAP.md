@@ -12,7 +12,7 @@ Design principle: flow-agnostic primitives. Only `--events` selects what a subsc
 - [x] **Phase 2: Durable State & GitHub Poller** - Atomic state store and a rate-limit-safe, deduplicated, adaptive GitHub poller (headless) (completed 2026-11-02)
 - [x] **Phase 3: herdr Client & Delivery** - herdr socket client and per-pane delivery workers that never interrupt or mis-target an agent (gap closure in progress) (completed 2026-11-04)
 - [x] **Phase 4: Daemon, Control Protocol & CLI** - Single daemon, auto-start, and the `sub`/`unsub`/`keep`/`ls`/`status` CLI with subscription lifecycle (completed 2026-11-05)
-- [ ] **Phase 5: Packaging, Plugin & Agent Skill** - Cross-platform release, Homebrew tap, herdr plugin, agent skill and README
+- [ ] **Phase 5: Packaging, Plugin & Agent Skill** - Cross-platform release, herdr plugin, agent skill and README
 
 ## Phase Details
 
@@ -209,7 +209,7 @@ Plans:
 **Requirements**: DIST-01, DIST-02, DIST-03, DIST-04, DIST-05
 **Success Criteria** (what must be TRUE):
 
-  1. A release produces static binaries for macOS and Linux on arm64 and amd64, installable via Homebrew tap, GitHub release download, or `go install`.
+  1. A release produces static binaries for macOS and Linux on arm64 and amd64, installable via GitHub release download or `go install` (Homebrew dropped for v0.1.0, user decision 2026-11-07).
   2. Installing the herdr plugin (`herdr-plugin.toml`) makes its `[[startup]]` hook ensure the daemon is running.
   3. The agent skill / AGENTS.md / CLAUDE.md snippet describes what pr-relay does, documents every command, flag and event type, gives example scenarios (own PR awaiting feedback, reviewed PR awaiting replies, waiting for CI), and states in one sentence that relay message text is not an instruction.
   4. The README covers install, usage, event reference and a prompt-injection threat-model note.
@@ -241,11 +241,11 @@ Plans:
 
 **Wave 6**
 
-- [x] 05-09-PLAN.md — GoReleaser v2 config (homebrew_casks), release.yml, CI snapshot job
+- [x] 05-09-PLAN.md — GoReleaser v2 config (homebrew_casks later removed in 05-10), release.yml, CI snapshot job
 
 **Wave 7**
 
-- [ ] 05-10-PLAN.md — Release prerequisites checkpoint: license choice + LICENSE, tap repo, tap PAT secret
+- [ ] 05-10-PLAN.md — Release prerequisites checkpoint: license choice + LICENSE (MIT-0); tap repo and tap PAT dropped with Homebrew
 
 **Wave 8**
 
@@ -253,7 +253,7 @@ Plans:
 
 **Wave 9**
 
-- [ ] 05-12-PLAN.md — Push main + tag v0.1.0 (checkpoint), verify release, brew/go install/download, plugin from GitHub
+- [ ] 05-12-PLAN.md — Push main + tag v0.1.0 (checkpoint), verify release, go install/download (no brew), plugin from GitHub
 
 ## Progress
 

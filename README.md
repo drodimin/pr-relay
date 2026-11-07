@@ -5,12 +5,6 @@ pr-relay watches GitHub pull requests for every coding agent on your machine and
 ## Quickstart
 
 1. **Install the binary.** Pick one:
-   - Homebrew (macOS and Linux):
-
-     ```sh
-     brew install drodimin/tap/pr-relay
-     ```
-
    - Go toolchain:
 
      ```sh
@@ -183,7 +177,9 @@ Release binaries are not code-signed or notarized. Verify downloads against `che
   ```sh
   xattr -d com.apple.quarantine ./pr-relay
   ```
-
-  The Homebrew cask removes the quarantine attribute in its post-install step. If `pr-relay version` is still blocked after a brew install, run the same command on the installed binary (`xattr -d com.apple.quarantine "$(command -v pr-relay)"`).
 - **The agent does not know about pr-relay.** Agents that load skills only at startup need a restart or a skills reload after `pr-relay skill install`, especially when the skills directory did not exist before.
 - **Updates do not arrive.** Check `pr-relay ls` in the pane, then `pr-relay status`. Updates wait while the agent is busy and are typed in once it has been idle for `quiet_period`. `pr-relay poll <PR-URL>` forces an immediate poll.
+
+## License
+
+MIT-0 (MIT No Attribution). See [LICENSE](LICENSE).
