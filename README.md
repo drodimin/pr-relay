@@ -18,7 +18,7 @@ pr-relay watches GitHub pull requests for every coding agent on your machine and
      ```
 
      This writes to `$(go env GOPATH)/bin` (usually `~/go/bin`). Add that directory to your PATH, then restart the herdr server with `herdr server stop` and start herdr again. The herdr server inherits PATH from the shell that launched it, and the plugin and your agents can only find `pr-relay` on that PATH.
-   - Release download: download the archive for your OS and architecture plus `checksums.txt` from the [GitHub releases page](https://github.com/drodimin/pr-relay/releases), verify it (`shasum -a 256 -c checksums.txt --ignore-missing` on macOS, `sha256sum -c checksums.txt --ignore-missing` on Linux), unpack it and put `pr-relay` on your PATH. On macOS, see the quarantine note under [Troubleshooting](#troubleshooting).
+   - Release download: download `pr-relay_<version>_<os>_<arch>.tar.gz` for your system (`os` is `darwin` or `linux`, `arch` is `amd64` or `arm64`, for example `pr-relay_0.1.0_darwin_arm64.tar.gz`) plus `checksums.txt` from the [GitHub releases page](https://github.com/drodimin/pr-relay/releases), verify it (`shasum -a 256 -c checksums.txt --ignore-missing` on macOS, `sha256sum -c checksums.txt --ignore-missing` on Linux), unpack it and put `pr-relay` on your PATH. On macOS, see the quarantine note under [Troubleshooting](#troubleshooting).
 
    Install only one copy. Two different `pr-relay` binaries on one machine make the daemon restart back and forth between versions.
 
