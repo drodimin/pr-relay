@@ -1,6 +1,6 @@
 name: release
 
-# Tag pushes only. Never trigger this on PRs: this job sees the tap token.
+# Tag pushes only. Never trigger this on PRs: this job has contents: write.
 on:
   push:
     tags: ["v*"]
@@ -26,4 +26,3 @@ jobs:
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}

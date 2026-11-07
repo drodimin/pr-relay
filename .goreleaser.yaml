@@ -17,14 +17,14 @@ builds:
     goarch: [amd64, arm64]
     flags: [-trimpath]
     ldflags:
-      # Leading v so brew, release-download and go install builds all print pr-relay v0.1.0.
+      # Leading v so release-download and go install builds both print pr-relay v0.1.0.
       - -s -w -X main.version=v{{ .Version }}
     mod_timestamp: "{{ .CommitTimestamp }}"
 
 archives:
   - formats: [tar.gz]
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
-    files: [README.md]
+    files: [LICENSE, README.md]
 
 checksum:
   name_template: checksums.txt
@@ -47,23 +47,3 @@ changelog:
     - title: Other
       order: 999
 
-homebrew_casks:
-  - name: pr-relay
-    binaries: [pr-relay]
-    homepage: https://github.com/drodimin/pr-relay
-    description: Push GitHub PR updates into herdr agent panes without polling
-    skip_upload: auto
-    commit_author:
-      name: goreleaserbot
-      email: bot@goreleaser.com
-    repository:
-      owner: drodimin
-      name: homebrew-tap
-      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
-    hooks:
-      post:
-        # Unsigned binary: Homebrew quarantines cask downloads, so strip it on macOS.
-        install_steps: |
-          on_macos do
-            run "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "{{ .StagedPath }}/pr-relay"]
-          end

@@ -63,6 +63,3 @@ jobs:
           distribution: goreleaser
           version: "~> v2"
           args: release --snapshot --clean --skip=publish
-        env:
-          # The cask template needs a value; nothing is published in snapshot mode.
-          HOMEBREW_TAP_GITHUB_TOKEN: snapshot-unused
