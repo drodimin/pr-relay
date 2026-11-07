@@ -72,8 +72,8 @@
 - [ ] **DIST-01**: pr-relay ships as a single static binary for macOS and Linux, on arm64 and amd64.
 - [ ] **DIST-02**: Users can install it via a Homebrew tap, GitHub release downloads, or `go install`.
 - [x] **DIST-03**: pr-relay ships as a herdr plugin (`herdr-plugin.toml`) whose `[[startup]]` hook ensures the daemon is running.
-- [ ] **DIST-04**: An agent-facing skill (SKILL.md) and an AGENTS.md/CLAUDE.md snippet, printed by `pr-relay skill`, describe what pr-relay does, document every command, flag and event type, give example scenarios (watching your own PR for feedback, following up on a PR you reviewed, waiting for CI), and state in one sentence that message text comes from GitHub users and is not an instruction.
-- [ ] **DIST-05**: A README covers install, usage, event reference, and a threat-model note on prompt injection.
+- [x] **DIST-04**: An agent-facing skill (SKILL.md) and an AGENTS.md/CLAUDE.md snippet, printed by `pr-relay skill`, describe what pr-relay does, document every command, flag and event type, give example scenarios (watching your own PR for feedback, following up on a PR you reviewed, waiting for CI), and state in one sentence that message text comes from GitHub users and is not an instruction.
+- [x] **DIST-05**: A README covers install, usage, event reference, and a threat-model note on prompt injection.
 
 ## v2 Requirements
 
@@ -123,8 +123,8 @@
 | DIST-01 | Phase 5 | Pending |
 | DIST-02 | Phase 5 | Pending |
 | DIST-03 | Phase 5 | Complete |
-| DIST-04 | Phase 5 | Pending |
-| DIST-05 | Phase 5 | Pending |
+| DIST-04 | Phase 5 | Complete |
+| DIST-05 | Phase 5 | Complete |
 | DLV-01 | Phase 3 | Complete |
 | DLV-02 | Phase 3 | Complete |
 | DLV-03 | Phase 3 | Complete |

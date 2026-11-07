@@ -237,7 +237,7 @@ Plans:
 
 **Wave 5**
 
-- [ ] 05-08-PLAN.md — README (D-23), docs drift test (D-24), REQUIREMENTS/ROADMAP drift fixes (D-25)
+- [x] 05-08-PLAN.md — README (D-23), docs drift test (D-24), REQUIREMENTS/ROADMAP drift fixes (D-25)
 
 **Wave 6**
 
@@ -263,4 +263,4 @@ Plans:
 | 2. Durable State & GitHub Poller | 12/12 | Complete   | 2026-11-02 |
 | 3. herdr Client & Delivery | 12/12 | Complete   | 2026-11-04 |
 | 4. Daemon, Control Protocol & CLI | 12/12 | Complete   | 2026-11-05 |
-| 5. Packaging, Plugin & Agent Skill | 7/12 | In Progress|  |
+| 5. Packaging, Plugin & Agent Skill | 8/12 | In Progress|  |
