@@ -28,6 +28,11 @@ const (
 // exampleSpanRE matches an inline code span holding a relay line.
 var exampleSpanRE = regexp.MustCompile("`(\\[pr-relay\\] [^`]+)`")
 
+// unescapeCell undoes the `\|` escape GitHub Markdown requires for a pipe
+// inside a table cell, including inside a code span, so the span is compared
+// with the golden line as rendered.
+func unescapeCell(s string) string { return strings.ReplaceAll(s, `\|`, "|") }
+
 // exampleSpans returns every relay example in doc: whole lines starting with
 // "[pr-relay] " (after trimming) and inline code spans, including Markdown
 // table cells, whose content starts with "[pr-relay] ".
@@ -39,7 +44,7 @@ func exampleSpans(doc string) []string {
 		}
 	}
 	for _, m := range exampleSpanRE.FindAllStringSubmatch(doc, -1) {
-		out = append(out, m[1])
+		out = append(out, unescapeCell(m[1]))
 	}
 	return out
 }
@@ -162,8 +167,8 @@ func TestDocsDrift(t *testing.T) {
 				t.Errorf("README.md Events row for `%s` has no [pr-relay] example", et)
 			}
 			for _, m := range ms {
-				if !golden[m[1]] {
-					t.Errorf("README.md Events row for `%s`: example is not a golden line: %q", et, m[1])
+				if span := unescapeCell(m[1]); !golden[span] {
+					t.Errorf("README.md Events row for `%s`: example is not a golden line: %q", et, span)
 				}
 			}
 		}
