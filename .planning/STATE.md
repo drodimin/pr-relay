@@ -4,13 +4,13 @@ milestone: v1.0
 milestone_name: milestone
 status: executing
 stopped_at: Phase 5 context gathered
-last_updated: "2026-11-07T14:52:30.196Z"
+last_updated: "2026-11-07T14:59:27.697Z"
 last_activity: 2026-11-07
 progress:
   total_phases: 5
   completed_phases: 4
   total_plans: 57
-  completed_plans: 53
+  completed_plans: 54
   percent: 80
 ---
 
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-10-31)
 ## Current Position
 
 Phase: 05 (packaging-plugin-agent-skill) — EXECUTING
-Plan: 9 of 12
+Plan: 10 of 12
 Status: Ready to execute
 Last activity: 2026-11-07
 
-Progress: [█████████░] 93%
+Progress: [██████████] 95%
 
 ## Performance Metrics
 
@@ -58,6 +58,7 @@ Progress: [█████████░] 93%
 | Phase 01 P09 | 20 min | 3 tasks | 30 files |
 | Phase 03 P12 | 45min | 2 tasks | 2 files |
 | Phase 05 P07 | 15m | 3 tasks | 3 files |
+| Phase 05 P09 | 15m | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -74,6 +75,8 @@ Recent decisions affecting current work:
 - [Phase 03]: herdr 0.9.5 reports interactive_ready as explicit true for Claude agents (launch_pending never present); tri-state readiness gate handles it
 - [Phase 05]: 05-07: herdr 0.9.5 shows plugin action stdout only in the plugin log; status/list-all open popup panes (status-view, list-view) via run.sh --open/--hold
 - [Phase 05]: 05-07: herdr TUI has no plugin action menu; README (05-08) must document a [[keys.command]] plugin_action keybinding
+- [Phase 05]: 05-09: homebrew_casks with on_macos xattr postflight step (no brews); archive name pr-relay_<version>_<os>_<arch>.tar.gz
+- [Phase 05]: 05-09: tap token secret only in tag-triggered release.yml; CI snapshot uses literal dummy
 
 ### Pending Todos
 
@@ -92,6 +95,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-11-07T14:52:30.191Z
+Last session: 2026-11-07T14:59:22.383Z
 Stopped at: Phase 5 context gathered
 Resume file: None

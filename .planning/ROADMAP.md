@@ -241,7 +241,7 @@ Plans:
 
 **Wave 6**
 
-- [ ] 05-09-PLAN.md — GoReleaser v2 config (homebrew_casks), release.yml, CI snapshot job
+- [x] 05-09-PLAN.md — GoReleaser v2 config (homebrew_casks), release.yml, CI snapshot job
 
 **Wave 7**
 
@@ -263,4 +263,4 @@ Plans:
 | 2. Durable State & GitHub Poller | 12/12 | Complete   | 2026-11-02 |
 | 3. herdr Client & Delivery | 12/12 | Complete   | 2026-11-04 |
 | 4. Daemon, Control Protocol & CLI | 12/12 | Complete   | 2026-11-05 |
-| 5. Packaging, Plugin & Agent Skill | 8/12 | In Progress|  |
+| 5. Packaging, Plugin & Agent Skill | 9/12 | In Progress|  |
