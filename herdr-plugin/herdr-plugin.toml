@@ -15,13 +15,13 @@ command = ["sh", "run.sh", "daemon", "--ensure"]
 id = "status"
 title = "pr-relay: status"
 contexts = ["global"]
-command = ["sh", "run.sh", "status"]
+command = ["sh", "run.sh", "--open", "status-view"]
 
 [[actions]]
 id = "list-all"
 title = "pr-relay: list all subscriptions"
 contexts = ["global"]
-command = ["sh", "run.sh", "ls", "--all"]
+command = ["sh", "run.sh", "--open", "list-view"]
 
 [[actions]]
 id = "restart"
@@ -34,3 +34,17 @@ id = "install-skill"
 title = "pr-relay: install agent skill"
 contexts = ["global"]
 command = ["sh", "run.sh", "skill", "install"]
+
+# herdr shows action stdout only in the plugin command log, so the status and
+# list-all actions open these popup panes to show their output (05-07 spike).
+[[panes]]
+id = "status-view"
+title = "pr-relay status"
+placement = "popup"
+command = ["sh", "run.sh", "--hold", "status"]
+
+[[panes]]
+id = "list-view"
+title = "pr-relay subscriptions"
+placement = "popup"
+command = ["sh", "run.sh", "--hold", "ls", "--all"]
