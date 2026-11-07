@@ -233,7 +233,7 @@ Plans:
 
 **Wave 4**
 
-- [ ] 05-07-PLAN.md — Action-output visibility spike on real herdr (checkpoint), conditional popup fallback
+- [x] 05-07-PLAN.md — Action-output visibility spike on real herdr (checkpoint), conditional popup fallback
 
 **Wave 5**
 
@@ -263,4 +263,4 @@ Plans:
 | 2. Durable State & GitHub Poller | 12/12 | Complete   | 2026-11-02 |
 | 3. herdr Client & Delivery | 12/12 | Complete   | 2026-11-04 |
 | 4. Daemon, Control Protocol & CLI | 12/12 | Complete   | 2026-11-05 |
-| 5. Packaging, Plugin & Agent Skill | 6/12 | In Progress|  |
+| 5. Packaging, Plugin & Agent Skill | 7/12 | In Progress|  |

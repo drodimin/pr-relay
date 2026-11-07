@@ -4,14 +4,14 @@ milestone: v1.0
 milestone_name: milestone
 status: executing
 stopped_at: Phase 5 context gathered
-last_updated: "2026-11-05T19:22:20.063Z"
-last_activity: 2026-11-05 -- Phase 05 execution started
+last_updated: "2026-11-07T14:46:16.697Z"
+last_activity: 2026-11-07
 progress:
   total_phases: 5
   completed_phases: 4
   total_plans: 57
-  completed_plans: 45
-  percent: 79
+  completed_plans: 52
+  percent: 80
 ---
 
 # Project State
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-10-31)
 ## Current Position
 
 Phase: 05 (packaging-plugin-agent-skill) — EXECUTING
-Plan: 1 of 12
-Status: Executing Phase 05
-Last activity: 2026-11-05 -- Phase 05 execution started
+Plan: 8 of 12
+Status: Ready to execute
+Last activity: 2026-11-07
 
-Progress: [██████████] 100%
+Progress: [█████████░] 91%
 
 ## Performance Metrics
 
@@ -57,6 +57,7 @@ Progress: [██████████] 100%
 *Updated after each plan completion*
 | Phase 01 P09 | 20 min | 3 tasks | 30 files |
 | Phase 03 P12 | 45min | 2 tasks | 2 files |
+| Phase 05 P07 | 15m | 3 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -71,6 +72,8 @@ Recent decisions affecting current work:
 - [Phase 01]: [01-09] Message wording locked and user-approved (lowercase verdicts, closed: merged/closed by X, ci.settled lists all failing names, force-push links compare URL)
 - [Phase 01]: [01-09] Self-authored push/force-push filtered by EVT-08; tests assert detection on raw diff output rather than weakening the filter
 - [Phase 03]: herdr 0.9.5 reports interactive_ready as explicit true for Claude agents (launch_pending never present); tri-state readiness gate handles it
+- [Phase 05]: 05-07: herdr 0.9.5 shows plugin action stdout only in the plugin log; status/list-all open popup panes (status-view, list-view) via run.sh --open/--hold
+- [Phase 05]: 05-07: herdr TUI has no plugin action menu; README (05-08) must document a [[keys.command]] plugin_action keybinding
 
 ### Pending Todos
 
@@ -89,6 +92,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-11-05T16:24:27.895Z
+Last session: 2026-11-07T14:44:04.037Z
 Stopped at: Phase 5 context gathered
-Resume file: .planning/phases/05-packaging-plugin-agent-skill/05-CONTEXT.md
+Resume file: None
