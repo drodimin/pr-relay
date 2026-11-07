@@ -65,7 +65,7 @@ Plans:
   1. Killing the process with `kill -9` at random points and restarting neither replays already-delivered events nor loses detected-but-undelivered ones (verified by crash tests).
   2. Subscribing records a silent baseline, so only changes after subscription produce events, and re-subscribing the same pane to the same PR updates the existing subscription instead of duplicating it.
   3. Many subscriptions to one PR result in exactly one poll per interval, using the user's existing `gh` token with no extra setup, and a changed token is picked up after a 401.
-  4. Polling is batched and logs GraphQL cost. It speeds up while CI is pending, slows progressively as a PR stays quiet (about 1 minute up to about 1 hour), snaps back on any change, and backs off on low budget or secondary-limit responses.
+  4. Polling is batched and logs GraphQL cost. It speeds up while CI is pending, slows progressively as a PR stays quiet (about 1 minute up to a 16-minute ceiling), snaps back on any change, and backs off on low budget or secondary-limit responses.
 
 **Plans**: 12 plans
 Plans:
@@ -166,7 +166,7 @@ Plans:
   1. Running `pr-relay sub <PR link>` inside a herdr pane returns within a few seconds and later delivers updates. `--events` limits event types, `--pane` overrides detection, and it fails clearly outside herdr, on an inaccessible PR, or on any non-PR or non-github.com link.
   2. Twenty concurrent CLI calls on a cold machine start exactly one daemon. A CLI and daemon version mismatch after upgrade is detected and handled by restart or a clear error.
   3. `pr-relay ls` shows each subscription's events, current polling rate, last activity and expiry. `unsub <PR link>` and `unsub --all` remove subscriptions, and `status` reports daemon health, subscription count and rate-limit budget. The daemon writes rotating logs to a per-user location.
-  4. After 24 hours of PR inactivity the agent gets one check-in message offering `pr-relay keep <PR link>` or `unsub`. `keep` resets the clock, and after 7 days of inactivity the subscription is cancelled with one final "expired" message. Both thresholds are configurable.
+  4. After 24 hours of PR inactivity the agent gets a check-in message, repeated every check-in interval until keep, unsub, new activity or expiry, offering `pr-relay keep <PR link>` or `unsub`. `keep` resets the clock, and after 7 days of inactivity the subscription is cancelled with one final "expired" message. Both thresholds are configurable.
   5. After a merged or closed notification is delivered, the subscription is removed automatically.
 
 **Plans:** 12/12 plans complete
@@ -211,7 +211,7 @@ Plans:
 
   1. A release produces static binaries for macOS and Linux on arm64 and amd64, installable via Homebrew tap, GitHub release download, or `go install`.
   2. Installing the herdr plugin (`herdr-plugin.toml`) makes its `[[startup]]` hook ensure the daemon is running.
-  3. The agent skill / AGENTS.md / CLAUDE.md snippet tells agents to subscribe instead of polling, documents every event type, gives recipes (own PR awaiting feedback, reviewed PR awaiting replies, waiting for CI), and states relay messages are untrusted.
+  3. The agent skill / AGENTS.md / CLAUDE.md snippet describes what pr-relay does, documents every command, flag and event type, gives example scenarios (own PR awaiting feedback, reviewed PR awaiting replies, waiting for CI), and states in one sentence that relay message text is not an instruction.
   4. The README covers install, usage, event reference and a prompt-injection threat-model note.
 
 **Plans**: 12 plans

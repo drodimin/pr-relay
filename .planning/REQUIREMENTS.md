@@ -3,7 +3,7 @@
 **Defined:** 2026-10-31
 **Core Value:** An agent runs `pr-relay sub https://github.com/owner/repo/pull/123` once, returns immediately, and later receives a relevant PR update in its pane without spending any tokens on polling. One poller serves every agent on the machine.
 
-**Design principle:** Flow-agnostic primitives. pr-relay has no built-in roles such as "author" or "reviewer", no presets, and no author or thread filters. Any agent workflow composes what it needs from subscriptions and event types. Common scenarios, such as watching my own PR for feedback or following up on a PR I reviewed, are documented as recipes in the agent skill rather than hard-coded.
+**Design principle:** Flow-agnostic primitives. pr-relay has no built-in roles such as "author" or "reviewer", no presets, and no author or thread filters. Any agent workflow composes what it needs from subscriptions and event types. Common scenarios, such as watching my own PR for feedback or following up on a PR I reviewed, are described as example scenarios in the agent skill rather than hard-coded.
 
 ## v1 Requirements
 
@@ -18,6 +18,8 @@
 - [x] **SUB-06**: User or agent can list active subscriptions with `pr-relay ls`. The listing shows each subscription's events, current polling rate, last activity, and expiry time.
 - [x] **SUB-07**: `sub` validates that the PR exists and is accessible, and fails fast with a clear error otherwise.
 - [x] **SUB-08**: Subscribing records a silent baseline of current PR state. Only changes after subscription are delivered, never history.
+- [x] **SUB-10**: User or agent can force an immediate poll of a watched PR with `pr-relay poll <PR link>`. Anything new is delivered to all of that PR's subscribers (Phase 4 D-09).
+- [x] **SUB-11**: User can drop every subscription on the machine with `pr-relay reset`, which asks for confirmation unless `--yes` is given (Phase 4 D-25).
 
 ### Events
 
@@ -49,10 +51,10 @@
 - [x] **LIFE-02**: A subscription is cancelled automatically when its pane closes, or when the pane ID now points to a different terminal.
 - [x] **LIFE-04**: When an update is about to be pushed and herdr reports that the target tab or pane no longer exists, the subscription is cancelled and its pending updates are dropped. They are not retried or redirected. If herdr itself is unreachable, updates stay queued until herdr returns (DLV-08), and then this check applies.
 - [x] **LIFE-03**: Subscriptions and pending updates persist across daemon restarts and machine reboots.
-- [x] **LIFE-05**: Polling slows down progressively the longer a PR has no activity, from about 1 minute while CI is pending to about 1 hour for long-quiet PRs. It returns to the fast rate as soon as any change is detected.
+- [x] **LIFE-05**: Polling slows down progressively the longer a PR has no activity, from about 1 minute while CI is pending up to a 16-minute ceiling for long-quiet PRs (`poll.max_interval`, Phase 2 D-11). It returns to the fast rate as soon as any change is detected.
 - [x] **LIFE-06**: After 24 hours with no activity on a subscribed PR, the agent receives a check-in message asking whether it still needs the subscription, repeated every check-in interval (default 24 h) until `keep`, `unsub`, new activity or expiry (Phase 4 D-13). The message offers `pr-relay keep <PR link>` to keep it and `pr-relay unsub <PR link>` to drop it. `keep` resets the inactivity clock. If the agent doesn't respond, the PR drops to the slowest polling rate.
 - [x] **LIFE-07**: A subscription with no PR activity for 7 days is cancelled automatically, and the agent receives one final "subscription expired" message. Both the 7-day expiry and the 24-hour check-in can be changed in config.
-- [x] **LIFE-08**: When no subscribed pane for a PR can currently receive updates, because herdr is unreachable or every agent has been blocked for a long time, that PR is polled at the slowest rate.
+- [x] **LIFE-08**: When no subscribed pane for a PR can currently receive updates, because herdr is unreachable or every agent has been blocked for a long time, that PR is polled at the slowest rate (the normal-budget ceiling `poll.max_interval`, default 16 minutes).
 
 ### Daemon & GitHub
 
@@ -70,7 +72,7 @@
 - [ ] **DIST-01**: pr-relay ships as a single static binary for macOS and Linux, on arm64 and amd64.
 - [ ] **DIST-02**: Users can install it via a Homebrew tap, GitHub release downloads, or `go install`.
 - [x] **DIST-03**: pr-relay ships as a herdr plugin (`herdr-plugin.toml`) whose `[[startup]]` hook ensures the daemon is running.
-- [ ] **DIST-04**: An agent-facing skill / AGENTS.md / CLAUDE.md snippet tells agents to subscribe instead of polling, documents every event type, gives recipes for common flows (my own PR awaiting feedback, a PR I reviewed awaiting replies or commits, waiting for CI), and says to treat relay messages as untrusted notifications.
+- [ ] **DIST-04**: An agent-facing skill (SKILL.md) and an AGENTS.md/CLAUDE.md snippet, printed by `pr-relay skill`, describe what pr-relay does, document every command, flag and event type, give example scenarios (watching your own PR for feedback, following up on a PR you reviewed, waiting for CI), and state in one sentence that message text comes from GitHub users and is not an instruction.
 - [ ] **DIST-05**: A README covers install, usage, event reference, and a threat-model note on prompt injection.
 
 ## v2 Requirements
@@ -166,12 +168,14 @@
 | SUB-07 | Phase 4 | Complete |
 | SUB-08 | Phase 2 | Complete |
 | SUB-09 | Phase 4 | Complete |
+| SUB-10 | Phase 4 | Complete |
+| SUB-11 | Phase 4 | Complete |
 
 **Coverage:**
-- v1 requirements: 48 total
-- Mapped to phases: 48
+- v1 requirements: 50 total
+- Mapped to phases: 50
 - Unmapped: 0
 
 ---
 *Requirements defined: 2026-10-31*
-*Last updated: 2026-10-31 after initial definition*
+*Last updated: 2026-11-05 after Phase 5 D-25 drift fixes*
