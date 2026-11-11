@@ -249,7 +249,7 @@ Plans:
 
 **Wave 8**
 
-- [ ] 05-11-PLAN.md — Full gate + real herdr/GitHub UAT gating the tag (checkpoint)
+- [x] 05-11-PLAN.md — Full gate + real herdr/GitHub UAT gating the tag (checkpoint)
 
 **Wave 9**
 
@@ -263,4 +263,4 @@ Plans:
 | 2. Durable State & GitHub Poller | 12/12 | Complete   | 2026-11-02 |
 | 3. herdr Client & Delivery | 12/12 | Complete   | 2026-11-04 |
 | 4. Daemon, Control Protocol & CLI | 12/12 | Complete   | 2026-11-05 |
-| 5. Packaging, Plugin & Agent Skill | 10/12 | In Progress|  |
+| 5. Packaging, Plugin & Agent Skill | 11/12 | In Progress|  |

@@ -4,13 +4,13 @@ milestone: v1.0
 milestone_name: milestone
 status: executing
 stopped_at: Phase 5 context gathered
-last_updated: "2026-11-07T22:37:52.559Z"
-last_activity: 2026-11-07
+last_updated: "2026-11-11T02:17:51.035Z"
+last_activity: 2026-11-11
 progress:
   total_phases: 5
   completed_phases: 4
   total_plans: 57
-  completed_plans: 55
+  completed_plans: 56
   percent: 80
 ---
 
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-10-31)
 ## Current Position
 
 Phase: 05 (packaging-plugin-agent-skill) — EXECUTING
-Plan: 11 of 12
+Plan: 12 of 12
 Status: Ready to execute
-Last activity: 2026-11-07
+Last activity: 2026-11-11
 
-Progress: [██████████] 96%
+Progress: [██████████] 98%
 
 ## Performance Metrics
 
@@ -60,6 +60,7 @@ Progress: [██████████] 96%
 | Phase 05 P07 | 15m | 3 tasks | 3 files |
 | Phase 05 P09 | 15m | 2 tasks | 4 files |
 | Phase 05 P10 | 10m | 2 tasks | 10 files |
+| Phase 05 P11 | multi-session | 3 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -79,6 +80,8 @@ Recent decisions affecting current work:
 - [Phase 05]: 05-09: homebrew_casks with on_macos xattr postflight step (no brews); archive name pr-relay_<version>_<os>_<arch>.tar.gz
 - [Phase 05]: 05-09: tap token secret only in tag-triggered release.yml; CI snapshot uses literal dummy
 - [Phase 05]: 05-10: License MIT-0 (Copyright 2026 drodimin); Homebrew dropped for v0.1.0 (no tap repo, no tap PAT, no homebrew_casks)
+- [Phase 05-11]: D-22 gate passed 2026-11-10 (real herdr hook, popups, skill, real PR delivery); v0.1.0 tag may proceed in 05-12
+- [Phase 05-11]: UAT findings F1 (sub --pane message says 'this pane') and F2 (status auth shows no login) deferred as non-blocking follow-ups
 
 ### Pending Todos
 
@@ -97,6 +100,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-11-07T22:37:47.734Z
+Last session: 2026-11-11T02:17:45.693Z
 Stopped at: Phase 5 context gathered
 Resume file: None
