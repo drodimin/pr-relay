@@ -12,7 +12,7 @@ Design principle: flow-agnostic primitives. Only `--events` selects what a subsc
 - [x] **Phase 2: Durable State & GitHub Poller** - Atomic state store and a rate-limit-safe, deduplicated, adaptive GitHub poller (headless) (completed 2026-11-02)
 - [x] **Phase 3: herdr Client & Delivery** - herdr socket client and per-pane delivery workers that never interrupt or mis-target an agent (gap closure in progress) (completed 2026-11-04)
 - [x] **Phase 4: Daemon, Control Protocol & CLI** - Single daemon, auto-start, and the `sub`/`unsub`/`keep`/`ls`/`status` CLI with subscription lifecycle (completed 2026-11-05)
-- [ ] **Phase 5: Packaging, Plugin & Agent Skill** - Cross-platform release, herdr plugin, agent skill and README
+- [x] **Phase 5: Packaging, Plugin & Agent Skill** - Cross-platform release, herdr plugin, agent skill and README (completed 2026-11-17)
 
 ## Phase Details
 
@@ -253,7 +253,7 @@ Plans:
 
 **Wave 9**
 
-- [ ] 05-12-PLAN.md — Push main + tag v0.1.0 (checkpoint), verify release, go install/download (no brew), plugin from GitHub
+- [x] 05-12-PLAN.md — Push main + tag v0.1.0 (checkpoint), verify release, go install/download (no brew), plugin from GitHub
 
 ## Progress
 
@@ -263,4 +263,4 @@ Plans:
 | 2. Durable State & GitHub Poller | 12/12 | Complete   | 2026-11-02 |
 | 3. herdr Client & Delivery | 12/12 | Complete   | 2026-11-04 |
 | 4. Daemon, Control Protocol & CLI | 12/12 | Complete   | 2026-11-05 |
-| 5. Packaging, Plugin & Agent Skill | 11/12 | In Progress|  |
+| 5. Packaging, Plugin & Agent Skill | 12/12 | Complete   | 2026-11-17 |

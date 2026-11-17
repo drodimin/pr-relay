@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: executing
-stopped_at: Phase 5 context gathered
-last_updated: "2026-11-11T02:17:51.035Z"
-last_activity: 2026-11-11
+status: verifying
+stopped_at: Completed 05-12-PLAN.md
+last_updated: "2026-11-17T00:42:58.076Z"
+last_activity: 2026-11-17
 progress:
   total_phases: 5
-  completed_phases: 4
+  completed_phases: 5
   total_plans: 57
-  completed_plans: 56
-  percent: 80
+  completed_plans: 57
+  percent: 100
 ---
 
 # Project State
@@ -27,10 +27,10 @@ See: .planning/PROJECT.md (updated 2026-10-31)
 
 Phase: 05 (packaging-plugin-agent-skill) — EXECUTING
 Plan: 12 of 12
-Status: Ready to execute
-Last activity: 2026-11-11
+Status: Phase complete — ready for verification
+Last activity: 2026-11-17
 
-Progress: [██████████] 98%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
@@ -61,6 +61,7 @@ Progress: [██████████] 98%
 | Phase 05 P09 | 15m | 2 tasks | 4 files |
 | Phase 05 P10 | 10m | 2 tasks | 10 files |
 | Phase 05 P11 | multi-session | 3 tasks | 2 files |
+| Phase 05 P12 | multi-session | 3 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -82,6 +83,8 @@ Recent decisions affecting current work:
 - [Phase 05]: 05-10: License MIT-0 (Copyright 2026 drodimin); Homebrew dropped for v0.1.0 (no tap repo, no tap PAT, no homebrew_casks)
 - [Phase 05-11]: D-22 gate passed 2026-11-10 (real herdr hook, popups, skill, real PR delivery); v0.1.0 tag may proceed in 05-12
 - [Phase 05-11]: UAT findings F1 (sub --pane message says 'this pane') and F2 (status auth shows no login) deferred as non-blocking follow-ups
+- [Phase 05]: 05-12: v0.1.0 published 2026-11-17 (tag on 230e75d) after CI lint fix via quick 261116-qss; tag held until CI green
+- [Phase 05]: 05-12: remote herdr plugin install from a non-interactive shell needs --yes; README omits it (follow-up F3)
 
 ### Pending Todos
 
@@ -100,8 +103,8 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-11-11T02:17:45.693Z
-Stopped at: Phase 5 context gathered
+Last session: 2026-11-17T00:42:58.070Z
+Stopped at: Completed 05-12-PLAN.md
 Resume file: None
 
 ### Quick Tasks Completed
