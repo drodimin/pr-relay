@@ -113,3 +113,4 @@ Resume file: None
 | # | Description | Date | Commit | Directory |
 |---|-------------|------|--------|-----------|
 | 261116-qss | Fix golangci-lint issues blocking v0.1.0 | 2026-11-17 | 795ade6 | [261116-qss-fix-golangci-lint-issues-blocking-v0-1-0](./quick/261116-qss-fix-golangci-lint-issues-blocking-v0-1-0/) |
+| 261116-rqq | Rewrite README intro as a benefits pitch and streamline Quick start | 2026-11-17 | 5a0daaa | [261116-rqq-rewrite-readme-intro-as-a-benefits-pitch](./quick/261116-rqq-rewrite-readme-intro-as-a-benefits-pitch/) |
