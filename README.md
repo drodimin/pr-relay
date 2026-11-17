@@ -1,31 +1,21 @@
 # pr-relay
 
-**Your coding agents find out what happens on their pull requests, and they never have to poll for it.**
+**Subscribe, don't poll.** pr-relay tells your coding agents when something happens on their pull requests, so they never have to keep checking.
 
-When an agent opens a PR, it usually waits on it in a loop: sleep, run `gh pr checks`, read the output, and repeat. Every pass costs tokens and a turn, and each agent runs its own loop against your GitHub rate limit. With pr-relay, the agent subscribes once and moves on to other work. When CI fails, a reviewer asks for changes or someone comments, a short line shows up in the agent's [herdr](https://herdr.dev) pane.
+An agent that waits on a PR usually loops: sleep, run `gh pr checks`, read the output, and repeat. Every pass burns tokens, fills the agent's context with noise and spends your GitHub rate limit. With pr-relay, the agent subscribes once and the updates come to it.
 
-- **No polling tokens.** `pr-relay sub` returns immediately. The agent doesn't sleep or wait.
-- **Only what matters.** Updates cover CI failures and results, reviews, comments, merge conflicts, new commits, and merges or closes. Your own activity is filtered out.
-- **Never interrupts.** An update is typed in only after the agent has gone idle. Updates that pile up while it's busy arrive together as one batch.
-- **One poller for every agent.** A single background daemon watches each PR once, however many agents subscribe to it, so it stays well within GitHub's rate limits.
-- **Zero setup.** It reuses your `gh` login and works with any agent in a herdr pane: Claude Code, Codex or anything else.
+- **No polling.** The agent subscribes once and gets back to work.
+- **Thin context.** Only real activity reaches the agent, one short line at a time.
+- **Never interrupts.** An update waits until the agent is idle.
+- **Light on resources.** One small daemon serves every agent on the machine.
+- **Fits any workflow.** An orchestrator can start a worker only when a PR needs attention, instead of keeping one alive just to wait.
+- **Zero setup.** It reuses your `gh` login and works with any agent in a [herdr](https://herdr.dev) pane.
 
-What the agent sees:
-
-```
-$ pr-relay sub https://github.com/octo/repo/pull/7
-subscribed octo/repo#7 events=all
-polling every 1m (next in 58s)
-updates arrive in this pane; unsub: pr-relay unsub https://github.com/octo/repo/pull/7
-
-  (later, once the agent is idle)
-[pr-relay] octo/repo#7 ci.failed: lint https://github.com/octo/repo/actions/runs/1/job/11
-[pr-relay] octo/repo#7 review changes_requested by alice (4 inline comments) https://github.com/octo/repo/pull/7#pullrequestreview-2
-```
+An agent runs `pr-relay sub <PR link>` in its pane, and the command returns immediately. A background daemon, started alongside herdr, watches every subscribed PR. It checks each PR once however many agents follow it, and it checks less often while nothing is happening. When CI fails or finishes, a review lands, someone else comments or pushes, the branch hits a conflict or the PR is merged, the daemon waits for the agent to go idle. Then it types a one-line `[pr-relay]` update into the pane, and the agent handles it like any other message. When the PR closes, its subscriptions end on their own. The details are in [How it works](#how-it-works).
 
 ## Quick start
 
-You need [herdr](https://herdr.dev), a working `gh auth login` and Go.
+You need [herdr](https://herdr.dev), a working `gh auth login` and Go. If you don't have Go yet, install it first with `brew install go` on macOS or by following [go.dev/doc/install](https://go.dev/doc/install) on Linux.
 
 ```sh
 go install github.com/drodimin/pr-relay/cmd/pr-relay@latest   # 1. the binary
@@ -33,11 +23,11 @@ herdr plugin install drodimin/pr-relay/herdr-plugin           # 2. starts the da
 pr-relay skill install                                        # 3. teaches your agents to use it
 ```
 
-Make sure `$(go env GOPATH)/bin` is on your PATH, then restart herdr (`herdr server stop`, then start it again) so it picks up the new binary.
+Make sure `$(go env GOPATH)/bin` is on your PATH. Then restart herdr by running `herdr server stop` and starting herdr again. herdr only finds programs on the PATH of the shell it was started from, so a running herdr can't see the new `pr-relay`.
 
-That's all. Ask an agent to watch its PR, or run `pr-relay sub <PR link>` in its pane yourself.
+That's all. Ask an agent to watch its PR. You can also invoke the skill by name, `/pr-relay` in Claude Code or `$pr-relay` in Codex, or run `pr-relay sub <PR link>` in the agent's pane yourself.
 
-No Go toolchain? See [Installation details](#installation-details) for prebuilt binaries.
+Prefer not to install Go? [Installation details](#installation-details) covers prebuilt binaries.
 
 ## Installation details
 
@@ -45,11 +35,9 @@ No Go toolchain? See [Installation details](#installation-details) for prebuilt 
 
 **Install only one copy.** If two different `pr-relay` binaries are on one machine, the daemon keeps restarting as one version and then the other.
 
-**Why restart herdr.** The herdr server inherits PATH from the shell that launched it, and the plugin and your agents can only find `pr-relay` on that PATH.
-
 **The plugin.** Its startup hook runs `pr-relay daemon --ensure` when herdr starts, so the daemon is running before any agent needs it. You can skip the plugin, because any `pr-relay` command also starts the daemon on demand.
 
-**The skill.** `pr-relay skill install` writes `~/.agents/skills/pr-relay/SKILL.md`. It also writes `~/.claude/skills/pr-relay/SKILL.md` when `~/.claude` exists. Use `--dir DIR` to write `DIR/pr-relay/SKILL.md` instead. Some agents read an instructions file rather than skills. For them, `pr-relay skill` prints the same text, which you can paste into `AGENTS.md` or `CLAUDE.md`. Agents that load skills only at startup need a restart after you install the skill.
+**The skill.** Agents use the `pr-relay` skill on their own when a PR comes up. You can also invoke it directly with `/pr-relay` in Claude Code or `$pr-relay` in Codex. If an agent doesn't see it, restart the agent. Agents that read an instructions file instead of skills can use the output of `pr-relay skill`, pasted into `AGENTS.md` or `CLAUDE.md`.
 
 ## Commands
 
