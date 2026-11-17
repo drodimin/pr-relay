@@ -68,3 +68,17 @@ None. All four tests passed.
 - Downloaded darwin arm64 binary: `pr-relay v0.1.0`.
 - `go install github.com/drodimin/pr-relay/cmd/pr-relay@v0.1.0` (proxy download): `pr-relay v0.1.0`.
 - Homebrew cask checks: N/A (Homebrew dropped for v0.1.0, user decision 2026-11-07).
+
+## Post-release (human, 05-12 Task 3) — 2026-11-17
+
+Adapted for no Homebrew: the install path is `go install` into `~/.local/bin`.
+
+1. **Dev copy replaced (D-06): PASS.** `pr-relay daemon stop` printed "daemon stopped". `GOBIN=$HOME/.local/bin go install github.com/drodimin/pr-relay/cmd/pr-relay@v0.1.0 && pr-relay version` printed `pr-relay v0.1.0`. Only one binary exists, `/Users/drodi/.local/bin/pr-relay`. There is none in `~/go/bin`.
+2. **Plugin swap: PASS.** `herdr plugin unlink pr-relay` returned plugin_unlinked removed:true. `herdr plugin install drodimin/pr-relay/herdr-plugin --ref v0.1.0` first refused with "remote plugin install requires --yes when stdin is not interactive". With `--yes`, the preview showed id pr-relay, version 0.1.0, ref v0.1.0, commit 230e75d9aa1edda81ccd093c893b2acdb9dc9d80, actions 4, startup 1, panes 2, build 0. It then printed "Installed pr-relay from drodimin/pr-relay/herdr-plugin." `herdr plugin list` shows `pr-relay (pr-relay) enabled [github:drodimin/pr-relay/herdr-plugin@v0.1.0]`.
+3. **herdr restarted by the user: PASS.**
+4. **Startup hook after restart: PASS.** plugin-log-1 `sh run.sh daemon --ensure` exited 0 with stdout "daemon running (pid 13450, v0.1.0)". `pgrep -fl "pr-relay daemon"` showed a single process, `13450 /Users/drodi/.local/bin/pr-relay daemon`. `pr-relay status` showed "daemon: running (version v0.1.0, pid 13450, up 1m)".
+5. **Linux (optional): not run.** The linux_amd64 archive checksum and contents were verified in Task 2.
+
+Overall: approved. All install paths verified.
+
+- **F3:** The README plugin install step (`herdr plugin install drodimin/pr-relay/herdr-plugin`) has no `--yes`. A remote install from a non-interactive shell, such as an agent pane or a script, is refused without it. The README should mention `--yes` for non-interactive use and consider showing `--ref v0.1.0`. This is a follow-up and the README was not edited in this close-out.
