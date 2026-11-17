@@ -142,7 +142,10 @@ func startDaemon(t *testing.T, o Options) *daemonRun {
 	t.Cleanup(func() {
 		cancel()
 		select {
-		case <-d.done:
+		case err := <-d.done:
+			if err != nil {
+				t.Logf("daemon exit: %v", err)
+			}
 		case <-time.After(10 * time.Second):
 			t.Errorf("daemon did not stop")
 		}
@@ -349,7 +352,7 @@ func TestDaemonStateLocked(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer st.Close()
+	defer func() { _ = st.Close() }()
 	err = Run(context.Background(), Options{Version: testVersion, Fetcher: newFakeFetcher()})
 	if err == nil || !strings.Contains(err.Error(), "state in use by another pr-relay") {
 		t.Fatalf("Run = %v, want 'state in use by another pr-relay'", err)

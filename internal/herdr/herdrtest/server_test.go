@@ -27,7 +27,7 @@ type rawResp struct {
 // roundTrip writes lines on c, then reads every response line until EOF.
 func roundTrip(t *testing.T, c net.Conn, lines ...string) []rawResp {
 	t.Helper()
-	defer c.Close()
+	defer func() { _ = c.Close() }()
 	go func() {
 		for _, l := range lines {
 			if _, err := io.WriteString(c, l+"\n"); err != nil {
@@ -257,7 +257,7 @@ func TestStopRestart(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Dialer after Restart: %v", err)
 	}
-	pc.Close()
+	_ = pc.Close()
 }
 
 func TestFailNext(t *testing.T) {

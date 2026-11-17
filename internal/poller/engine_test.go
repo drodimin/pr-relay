@@ -839,7 +839,7 @@ func TestEngineRestart(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer st2.Close()
+	defer func() { _ = st2.Close() }()
 	e2, err := New(Options{Saver: st2, State: state2, Fetcher: newTestClient(t, h.f), Config: config.Defaults(), Now: h.clk.Now})
 	if err != nil {
 		t.Fatal(err)

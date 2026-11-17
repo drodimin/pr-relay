@@ -186,7 +186,7 @@ func rawExchange(t *testing.T, srv *Server, payload []byte) (Response, error) {
 	t.Helper()
 	client, server := net.Pipe()
 	go srv.ServeConn(server)
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 	go func() { _, _ = client.Write(payload) }()
 	line, err := bufio.NewReader(client).ReadBytes('\n')
 	if err != nil {
@@ -243,7 +243,7 @@ func TestLineCap(t *testing.T) {
 		if _, err := br.ReadByte(); !errors.Is(err, io.EOF) && !errors.Is(err, io.ErrClosedPipe) {
 			t.Fatalf("conn still open after oversized line: %v", err)
 		}
-		client.Close()
+		_ = client.Close()
 	})
 }
 
@@ -251,7 +251,7 @@ func TestReadTimeout(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		srv := NewServer(ServerOptions{Self: daemonSelf})
 		client, server := net.Pipe()
-		defer client.Close()
+		defer func() { _ = client.Close() }()
 		go srv.ServeConn(server)
 		start := time.Now()
 		_, err := client.Read(make([]byte, 1))
@@ -364,7 +364,7 @@ func shortDir(t *testing.T) string {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { os.RemoveAll(dir) })
+	t.Cleanup(func() { _ = os.RemoveAll(dir) })
 	return dir
 }
 
@@ -427,7 +427,7 @@ func TestDialGuard(t *testing.T) {
 			t.Fatal(err)
 		}
 		ln.(*net.UnixListener).SetUnlinkOnClose(false)
-		ln.Close()
+		_ = ln.Close()
 		_, err = NewClient(p, "0.4.0", nil).Call(t.Context(), MethodHello, nil, nil)
 		if !IsUnreachable(err) {
 			t.Fatalf("err = %v, want unreachable", err)

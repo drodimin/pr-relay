@@ -318,7 +318,7 @@ func TestDialUnixGuard(t *testing.T) {
 	} {
 		conn, err := herdr.DialUnix(ctx, tc.path)
 		if err == nil {
-			conn.Close()
+			_ = conn.Close()
 			t.Errorf("DialUnix(%s) succeeded", tc.path)
 			continue
 		}
@@ -356,7 +356,7 @@ func TestOversizedLine(t *testing.T) {
 		dial := func(ctx context.Context, socket string) (net.Conn, error) {
 			client, server := net.Pipe()
 			go func() {
-				defer server.Close()
+				defer func() { _ = server.Close() }()
 				buf := make([]byte, 4096)
 				_, _ = server.Read(buf) // the request
 				chunk := []byte(strings.Repeat("x", 64<<10))
@@ -384,7 +384,7 @@ func TestMalformedResponse(t *testing.T) {
 		dial := func(ctx context.Context, socket string) (net.Conn, error) {
 			client, server := net.Pipe()
 			go func() {
-				defer server.Close()
+				defer func() { _ = server.Close() }()
 				buf := make([]byte, 4096)
 				_, _ = server.Read(buf)
 				_, _ = server.Write([]byte("{not json\n"))
