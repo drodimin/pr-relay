@@ -177,7 +177,7 @@ func (s *Server) isClosed() bool {
 }
 
 func (s *Server) handle(c net.Conn) {
-	defer c.Close()
+	defer func() { _ = c.Close() }()
 	_ = c.SetReadDeadline(time.Now().Add(ReadTimeout))
 	line, err := readLine(bufio.NewReaderSize(c, 64<<10))
 	if err != nil {

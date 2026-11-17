@@ -43,6 +43,6 @@ func runKeep(ctx context.Context, stdout io.Writer, call caller, getenv func(str
 	if err := call(ctx, ctl.MethodKeep, ctl.KeepParams{URL: ref.URL(), Target: target}, &res); err != nil {
 		return err
 	}
-	fmt.Fprint(stdout, formatKeep(res, time.Now()))
+	_, _ = fmt.Fprint(stdout, formatKeep(res, time.Now()))
 	return nil
 }

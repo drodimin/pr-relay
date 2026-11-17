@@ -119,7 +119,7 @@ func runDevDeliver(ctx context.Context, stdout, stderr io.Writer, args []string,
 		if err := os.Chmod(dir, 0o700); err != nil {
 			return err
 		}
-		fmt.Fprintf(stderr, "state dir %s (temporary)\n", dir)
+		_, _ = fmt.Fprintf(stderr, "state dir %s (temporary)\n", dir)
 		stateDir = dir
 	}
 
@@ -160,7 +160,7 @@ func runDevDeliver(ctx context.Context, stdout, stderr io.Writer, args []string,
 	defer func() {
 		for _, id := range subIDs {
 			if err := env.eng.Unsubscribe(id); err != nil {
-				fmt.Fprintf(stderr, "dev deliver: unsubscribe %s: %v\n", id, err)
+				_, _ = fmt.Fprintf(stderr, "dev deliver: unsubscribe %s: %v\n", id, err)
 			}
 		}
 	}()
@@ -177,7 +177,7 @@ func runDevDeliver(ctx context.Context, stdout, stderr io.Writer, args []string,
 			return fmt.Errorf("subscribe %s: %w", ref, err)
 		}
 		subIDs = append(subIDs, si.SubID)
-		fmt.Fprintf(stdout, "subscribed %s pane=%s agent=%s\n", ref, pane, info.Agent)
+		_, _ = fmt.Fprintf(stdout, "subscribed %s pane=%s agent=%s\n", ref, pane, info.Agent)
 	}
 
 	mgr, err := deliver.New(deliver.Options{
@@ -246,11 +246,11 @@ func (p *devPrinter) drain() {
 				evs[i] = pe.Event
 			}
 			for _, l := range render.Lines(s.ref, evs) {
-				fmt.Fprintln(p.out, l)
+				_, _ = fmt.Fprintln(p.out, l)
 			}
 		}
 		if d.Dropped > 0 {
-			fmt.Fprintf(p.out, "[pr-relay] %s note: %d updates dropped\n", s.ref, d.Dropped)
+			_, _ = fmt.Fprintf(p.out, "[pr-relay] %s note: %d updates dropped\n", s.ref, d.Dropped)
 		}
 		if d.UpToSeq > 0 {
 			if err := p.eng.Ack(s.id, d.UpToSeq); err != nil {
@@ -270,7 +270,7 @@ func (p *devPrinter) onCommit(r poller.CommitReport) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.drain()
-	fmt.Fprintf(p.out, "poll prs=%d cost=%d remaining=%d/%d reset=%s forced=%t\n",
+	_, _ = fmt.Fprintf(p.out, "poll prs=%d cost=%d remaining=%d/%d reset=%s forced=%t\n",
 		len(r.PRs), r.Cost, r.Remaining, r.Limit, r.ResetAt.UTC().Format(time.RFC3339), r.Forced)
 	for _, pr := range r.PRs {
 		line := fmt.Sprintf("  %s new=%d interval=%s next=%s",
@@ -278,7 +278,7 @@ func (p *devPrinter) onCommit(r poller.CommitReport) {
 		if pr.Err != "" {
 			line += " err=" + pr.Err
 		}
-		fmt.Fprintln(p.out, line)
+		_, _ = fmt.Fprintln(p.out, line)
 	}
 }
 
@@ -314,7 +314,7 @@ func setupDev(stderr io.Writer, args []string, cfgPath, stateDir string, onCommi
 	}
 	cfg, warns, err := config.Load(cfgPath)
 	for _, w := range warns {
-		fmt.Fprintf(stderr, "pr-relay: config: %s\n", w)
+		_, _ = fmt.Fprintf(stderr, "pr-relay: config: %s\n", w)
 	}
 	if err != nil {
 		return nil, err

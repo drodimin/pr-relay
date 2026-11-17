@@ -93,7 +93,7 @@ func (c *Client) Call(ctx context.Context, method string, params, result any) (P
 		}
 		return Peer{}, &UnreachableError{Socket: c.socket, Err: err}
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 	stop := context.AfterFunc(ctx, func() { _ = conn.Close() })
 	defer stop()
 

@@ -140,7 +140,7 @@ func (c *Client) roundTrip(ctx context.Context, method string, params, out any, 
 		}
 		return &UnreachableError{Socket: c.socket, Err: err}
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 	stop := context.AfterFunc(ctx, func() { _ = conn.Close() })
 	defer stop()
 

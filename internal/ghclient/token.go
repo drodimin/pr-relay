@@ -97,7 +97,7 @@ func (t *TokenSource) Token(ctx context.Context) (string, string, error) {
 func sanitizeExecErr(err error) error {
 	var ee *exec.ExitError
 	if errors.As(err, &ee) {
-		return errors.New(ee.ProcessState.String())
+		return errors.New(ee.String())
 	}
 	return err
 }

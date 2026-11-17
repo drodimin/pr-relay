@@ -234,7 +234,7 @@ func (s *Stream) Next() (Event, error) {
 	line, err := readLine(s.br)
 	if err != nil {
 		if errors.Is(err, errLineTooLong) {
-			s.Close()
+			_ = s.Close()
 			return Event{}, &UnreachableError{Socket: s.socket, Err: err}
 		}
 		return Event{}, &UnreachableError{Socket: s.socket, Err: err}
@@ -244,7 +244,7 @@ func (s *Stream) Next() (Event, error) {
 		return Event{}, fmt.Errorf("herdr: decode event: %w", err)
 	}
 	if sl.Error != nil {
-		s.Close()
+		_ = s.Close()
 		return Event{}, sl.Error
 	}
 	kind := kindOf(sl.Event)

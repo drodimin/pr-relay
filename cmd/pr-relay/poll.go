@@ -35,6 +35,6 @@ func runPoll(ctx context.Context, stdout io.Writer, call caller, link string) er
 	if err := call(ctx, ctl.MethodPoll, ctl.PollParams{URL: ref.URL()}, &res); err != nil {
 		return err
 	}
-	fmt.Fprint(stdout, formatPoll(res))
+	_, _ = fmt.Fprint(stdout, formatPoll(res))
 	return nil
 }

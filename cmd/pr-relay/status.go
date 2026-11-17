@@ -30,6 +30,6 @@ func runStatus(ctx context.Context, stdout io.Writer, call caller) error {
 	if err := call(ctx, ctl.MethodStatus, nil, &res); err != nil {
 		return err
 	}
-	fmt.Fprint(stdout, formatStatus(res))
+	_, _ = fmt.Fprint(stdout, formatStatus(res))
 	return nil
 }

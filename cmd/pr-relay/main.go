@@ -28,7 +28,7 @@ func newRootCmd() *cobra.Command {
 		Short: "Print the pr-relay version",
 		Args:  cobra.NoArgs,
 		Run: func(cmd *cobra.Command, _ []string) {
-			fmt.Fprintln(cmd.OutOrStdout(), versionString())
+			_, _ = fmt.Fprintln(cmd.OutOrStdout(), versionString())
 		},
 	})
 	root.AddCommand(newSubCmd(), newUnsubCmd(), newKeepCmd(), newPollCmd(), newLsCmd(),

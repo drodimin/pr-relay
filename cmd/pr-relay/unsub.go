@@ -62,13 +62,13 @@ func runUnsub(ctx context.Context, stdout io.Writer, call caller, getenv func(st
 	}
 	switch {
 	case res.Removed == 0:
-		fmt.Fprintln(stdout, "not subscribed")
+		_, _ = fmt.Fprintln(stdout, "not subscribed")
 	case !all:
-		fmt.Fprintf(stdout, "unsubscribed %s\n", ref)
+		_, _ = fmt.Fprintf(stdout, "unsubscribed %s\n", ref)
 	case res.Removed == 1:
-		fmt.Fprintln(stdout, "unsubscribed 1 subscription")
+		_, _ = fmt.Fprintln(stdout, "unsubscribed 1 subscription")
 	default:
-		fmt.Fprintf(stdout, "unsubscribed %d subscriptions\n", res.Removed)
+		_, _ = fmt.Fprintf(stdout, "unsubscribed %d subscriptions\n", res.Removed)
 	}
 	return nil
 }

@@ -41,7 +41,7 @@ func SignalReady(startErr error) {
 	if f == nil {
 		return
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	msg := "ok\n"
 	if startErr != nil {
 		msg = "err " + oneLine(startErr.Error()) + "\n"

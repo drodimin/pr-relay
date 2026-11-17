@@ -66,7 +66,7 @@ func runSkillInstall(stdout io.Writer, home, dir string) error {
 		if err := writeSkill(path); err != nil {
 			return err
 		}
-		fmt.Fprintf(stdout, "installed %s\n", path)
+		_, _ = fmt.Fprintf(stdout, "installed %s\n", path)
 	}
 	return nil
 }
@@ -96,17 +96,17 @@ func writeSkill(path string) error {
 		return fmt.Errorf("skill: install: create temp: %w", err)
 	}
 	tmp := f.Name()
-	defer os.Remove(tmp)
+	defer func() { _ = os.Remove(tmp) }()
 	if err := f.Chmod(0o644); err != nil {
-		f.Close()
+		_ = f.Close()
 		return fmt.Errorf("skill: install: chmod: %w", err)
 	}
 	if _, err := f.Write(skills.SKILL); err != nil {
-		f.Close()
+		_ = f.Close()
 		return fmt.Errorf("skill: install: write: %w", err)
 	}
 	if err := f.Sync(); err != nil {
-		f.Close()
+		_ = f.Close()
 		return fmt.Errorf("skill: install: sync: %w", err)
 	}
 	if err := f.Close(); err != nil {
@@ -119,7 +119,7 @@ func writeSkill(path string) error {
 	if err != nil {
 		return fmt.Errorf("skill: install: open dir: %w", err)
 	}
-	defer d.Close()
+	defer func() { _ = d.Close() }()
 	if err := d.Sync(); err != nil {
 		return fmt.Errorf("skill: install: sync dir: %w", err)
 	}

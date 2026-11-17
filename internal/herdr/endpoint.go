@@ -371,7 +371,7 @@ func (ep *Endpoint) read(ctx context.Context, stream *Stream) (endReason, error)
 		_ = stream.Close()
 	}()
 	defer close(done)
-	defer stream.Close()
+	defer func() { _ = stream.Close() }()
 	defer func() {
 		if retried.Load() {
 			ep.omitDelay = min(ep.omitDelay*2, maxOmittedRetry)

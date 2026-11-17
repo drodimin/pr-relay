@@ -49,6 +49,6 @@ func runLs(ctx context.Context, stdout io.Writer, call caller, getenv func(strin
 	if err := call(ctx, ctl.MethodLs, params, &res); err != nil {
 		return err
 	}
-	fmt.Fprint(stdout, formatLs(res, all))
+	_, _ = fmt.Fprint(stdout, formatLs(res, all))
 	return nil
 }

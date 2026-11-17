@@ -43,7 +43,7 @@ func runReset(ctx context.Context, stdout, stderr io.Writer, call caller, stdin 
 		if !isTTY {
 			return errors.New("reset drops every subscription on this machine; re-run with --yes")
 		}
-		fmt.Fprint(stderr, "drop every pr-relay subscription on this machine? [y/N] ")
+		_, _ = fmt.Fprint(stderr, "drop every pr-relay subscription on this machine? [y/N] ")
 		line, _ := bufio.NewReader(stdin).ReadString('\n')
 		switch strings.ToLower(strings.TrimSpace(line)) {
 		case "y", "yes":
@@ -61,6 +61,6 @@ func runReset(ctx context.Context, stdout, stderr io.Writer, call caller, stdin 
 	if res.Removed == 1 {
 		noun = "subscription"
 	}
-	fmt.Fprintf(stdout, "removed %d %s\n", res.Removed, noun)
+	_, _ = fmt.Fprintf(stdout, "removed %d %s\n", res.Removed, noun)
 	return nil
 }

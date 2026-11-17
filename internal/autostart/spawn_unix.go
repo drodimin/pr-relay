@@ -31,12 +31,12 @@ func spawn(ctx context.Context, exe string, args []string, env []string, timeout
 	if err != nil {
 		return fmt.Errorf("autostart: open %s: %w", os.DevNull, err)
 	}
-	defer devnull.Close()
+	defer func() { _ = devnull.Close() }()
 	r, w, err := os.Pipe()
 	if err != nil {
 		return fmt.Errorf("autostart: ready pipe: %w", err)
 	}
-	defer r.Close()
+	defer func() { _ = r.Close() }()
 
 	cmd := exec.Command(exe, args...)
 	cmd.Dir = "/"

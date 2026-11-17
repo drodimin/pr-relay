@@ -86,7 +86,7 @@ func autostartOptions(stderr io.Writer) autostart.Options {
 func runDaemonForeground(ctx context.Context, stdout io.Writer, run func(context.Context) error) error {
 	err := run(ctx)
 	if errors.Is(err, daemon.ErrAlreadyRunning) {
-		fmt.Fprintln(stdout, "daemon already running")
+		_, _ = fmt.Fprintln(stdout, "daemon already running")
 		return nil
 	}
 	return err
@@ -101,9 +101,9 @@ func runDaemonStop(ctx context.Context, stdout io.Writer, stop func(context.Cont
 		return err
 	}
 	if was {
-		fmt.Fprintln(stdout, "daemon stopped")
+		_, _ = fmt.Fprintln(stdout, "daemon stopped")
 	} else {
-		fmt.Fprintln(stdout, "daemon not running")
+		_, _ = fmt.Fprintln(stdout, "daemon not running")
 	}
 	return nil
 }
@@ -120,7 +120,7 @@ func runDaemonRestart(ctx context.Context, stdout io.Writer, restart func(contex
 	if err != nil {
 		return err
 	}
-	fmt.Fprintf(stdout, "daemon restarted (pid %d)\n", peer.PID)
+	_, _ = fmt.Fprintf(stdout, "daemon restarted (pid %d)\n", peer.PID)
 	return nil
 }
 
@@ -137,6 +137,6 @@ func runEnsure(ctx context.Context, stdout io.Writer, ensure func(context.Contex
 	if err != nil {
 		return err
 	}
-	fmt.Fprintf(stdout, "daemon running (pid %d, %s)\n", peer.PID, peer.Version)
+	_, _ = fmt.Fprintf(stdout, "daemon running (pid %d, %s)\n", peer.PID, peer.Version)
 	return nil
 }

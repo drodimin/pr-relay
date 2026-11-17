@@ -48,7 +48,7 @@ func formatLs(r ctl.LsResult, all bool) string {
 	var b strings.Builder
 	tw := tabwriter.NewWriter(&b, 0, 0, 2, ' ', 0)
 	if all {
-		fmt.Fprintln(tw, "PANE\tPR\tEVENTS\tPOLL\tLAST\tCHECK-IN\tEXPIRES")
+		_, _ = fmt.Fprintln(tw, "PANE\tPR\tEVENTS\tPOLL\tLAST\tCHECK-IN\tEXPIRES")
 	}
 	for _, row := range r.Rows {
 		last := lastActivity(row, r.Now)
@@ -67,7 +67,7 @@ func formatLs(r ctl.LsResult, all bool) string {
 				cells = append(cells, "check-in "+inOr(row.CheckinDue, r.Now, "due"), "expires "+inOr(row.ExpiresAt, r.Now, "now"))
 			}
 		}
-		fmt.Fprintln(tw, strings.Join(cells, "\t"))
+		_, _ = fmt.Fprintln(tw, strings.Join(cells, "\t"))
 	}
 	_ = tw.Flush() // writes to a strings.Builder cannot fail
 	return b.String()

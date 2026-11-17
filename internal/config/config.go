@@ -135,7 +135,7 @@ func (d *Duration) UnmarshalText(b []byte) error {
 
 // MarshalText renders the duration in Go duration syntax.
 func (d Duration) MarshalText() ([]byte, error) {
-	return []byte(d.Duration.String()), nil
+	return []byte(d.String()), nil
 }
 
 // PollConfig is the [poll] table.

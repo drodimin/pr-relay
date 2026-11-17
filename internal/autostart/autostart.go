@@ -175,7 +175,7 @@ func Call(ctx context.Context, o Options, method string, params, result any) (ct
 	if err != nil {
 		return peer, err
 	}
-	fmt.Fprintf(o.Stderr, "restarted daemon (%s -> %s)\n", old, o.Version)
+	_, _ = fmt.Fprintf(o.Stderr, "restarted daemon (%s -> %s)\n", old, o.Version)
 	return peer, nil
 }
 
@@ -214,7 +214,7 @@ func stop(ctx context.Context, o Options, c *ctl.Client, socket string) (bool, e
 // acquiring it proves the daemon fully exited.
 func waitExited(ctx context.Context, socket string, timeout time.Duration) error {
 	lk := flock.New(socket + ".lock")
-	defer lk.Close()
+	defer func() { _ = lk.Close() }()
 	wctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	ok, err := lk.TryLockContext(wctx, lockRetry)

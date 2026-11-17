@@ -55,9 +55,9 @@ func runSub(ctx context.Context, stdout, stderr io.Writer, call caller, getenv f
 	if err := call(ctx, ctl.MethodSub, ctl.SubParams{URL: ref.URL(), Events: ev, Target: target}, &res); err != nil {
 		return err
 	}
-	fmt.Fprint(stdout, formatSub(res, time.Now()))
+	_, _ = fmt.Fprint(stdout, formatSub(res, time.Now()))
 	if res.Warning != "" {
-		fmt.Fprintln(stderr, "warning: "+res.Warning)
+		_, _ = fmt.Fprintln(stderr, "warning: "+res.Warning)
 	}
 	return nil
 }

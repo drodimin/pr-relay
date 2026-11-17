@@ -324,7 +324,9 @@ func Run(ctx context.Context, o Options) (err error) {
 	if err := srv.Close(drainTimeout); err != nil {
 		log.Warn("drain incomplete", "error", err)
 	}
-	<-serveErr
+	if err := <-serveErr; err != nil {
+		log.Debug("control socket serve returned after close", "error", err)
+	}
 	stopWork()
 	wg.Wait()
 	_ = ln.Close() // unlinks the socket (already closed by srv.Close)
