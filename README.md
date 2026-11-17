@@ -1,44 +1,55 @@
 # pr-relay
 
-pr-relay watches GitHub pull requests for every coding agent on your machine and pushes short, noise-filtered `[pr-relay]` lines into the agent's [herdr](https://herdr.dev) pane when something relevant happens: a CI failure, a review verdict, a comment, a conflict, new commits, a merge. An agent subscribes once with `pr-relay sub <PR link>`, the command returns immediately, and the agent never polls, sleeps or blocks waiting on PR state. One background daemon does the polling for every agent, so GitHub request volume stays roughly the same however many agents subscribe. It reuses your existing `gh` login and works with any agent that runs in a herdr pane (Claude Code, Codex or anything else).
+**Your coding agents find out what happens on their pull requests, and they never have to poll for it.**
 
-## Quickstart
+When an agent opens a PR, it usually waits on it in a loop: sleep, run `gh pr checks`, read the output, and repeat. Every pass costs tokens and a turn, and each agent runs its own loop against your GitHub rate limit. With pr-relay, the agent subscribes once and moves on to other work. When CI fails, a reviewer asks for changes or someone comments, a short line shows up in the agent's [herdr](https://herdr.dev) pane.
 
-1. **Install the binary.** Pick one:
-   - Go toolchain:
+- **No polling tokens.** `pr-relay sub` returns immediately. The agent doesn't sleep or wait.
+- **Only what matters.** Updates cover CI failures and results, reviews, comments, merge conflicts, new commits, and merges or closes. Your own activity is filtered out.
+- **Never interrupts.** An update is typed in only after the agent has gone idle. Updates that pile up while it's busy arrive together as one batch.
+- **One poller for every agent.** A single background daemon watches each PR once, however many agents subscribe to it, so it stays well within GitHub's rate limits.
+- **Zero setup.** It reuses your `gh` login and works with any agent in a herdr pane: Claude Code, Codex or anything else.
 
-     ```sh
-     go install github.com/drodimin/pr-relay/cmd/pr-relay@latest
-     ```
+What the agent sees:
 
-     This writes to `$(go env GOPATH)/bin` (usually `~/go/bin`). Add that directory to your PATH, then restart the herdr server with `herdr server stop` and start herdr again. The herdr server inherits PATH from the shell that launched it, and the plugin and your agents can only find `pr-relay` on that PATH.
-   - Release download: download `pr-relay_<version>_<os>_<arch>.tar.gz` for your system (`os` is `darwin` or `linux`, `arch` is `amd64` or `arm64`, for example `pr-relay_0.1.0_darwin_arm64.tar.gz`) plus `checksums.txt` from the [GitHub releases page](https://github.com/drodimin/pr-relay/releases), verify it (`shasum -a 256 -c checksums.txt --ignore-missing` on macOS, `sha256sum -c checksums.txt --ignore-missing` on Linux), unpack it and put `pr-relay` on your PATH. On macOS, see the quarantine note under [Troubleshooting](#troubleshooting).
+```
+$ pr-relay sub https://github.com/octo/repo/pull/7
+subscribed octo/repo#7 events=all
+polling every 1m (next in 58s)
+updates arrive in this pane; unsub: pr-relay unsub https://github.com/octo/repo/pull/7
 
-   Install only one copy. Two different `pr-relay` binaries on one machine make the daemon restart back and forth between versions.
+  (later, once the agent is idle)
+[pr-relay] octo/repo#7 ci.failed: lint https://github.com/octo/repo/actions/runs/1/job/11
+[pr-relay] octo/repo#7 review changes_requested by alice (4 inline comments) https://github.com/octo/repo/pull/7#pullrequestreview-2
+```
 
-2. **Install the herdr plugin.**
+## Quick start
 
-   ```sh
-   herdr plugin install drodimin/pr-relay/herdr-plugin
-   ```
+You need [herdr](https://herdr.dev), a working `gh auth login` and Go.
 
-   Its startup hook runs `pr-relay daemon --ensure` when herdr starts, so the daemon is up before any agent needs it. (Any `pr-relay` command also starts the daemon on demand.)
+```sh
+go install github.com/drodimin/pr-relay/cmd/pr-relay@latest   # 1. the binary
+herdr plugin install drodimin/pr-relay/herdr-plugin           # 2. starts the daemon with herdr
+pr-relay skill install                                        # 3. teaches your agents to use it
+```
 
-3. **Install the agent skill.**
+Make sure `$(go env GOPATH)/bin` is on your PATH, then restart herdr (`herdr server stop`, then start it again) so it picks up the new binary.
 
-   ```sh
-   pr-relay skill install
-   ```
+That's all. Ask an agent to watch its PR, or run `pr-relay sub <PR link>` in its pane yourself.
 
-   This writes `~/.agents/skills/pr-relay/SKILL.md`, and also `~/.claude/skills/pr-relay/SKILL.md` when `~/.claude` exists. Use `pr-relay skill install --dir DIR` to write `DIR/pr-relay/SKILL.md` instead. For agents that read an instructions file rather than skills, `pr-relay skill` prints the same text for pasting into `AGENTS.md` or `CLAUDE.md`.
+No Go toolchain? See [Installation details](#installation-details) for prebuilt binaries.
 
-4. **Subscribe from an agent's pane.**
+## Installation details
 
-   ```sh
-   pr-relay sub https://github.com/OWNER/REPO/pull/N
-   ```
+**Prebuilt binary.** Instead of `go install`, you can download a release. From the [releases page](https://github.com/drodimin/pr-relay/releases), get `pr-relay_<version>_<os>_<arch>.tar.gz` for your system (`os` is `darwin` or `linux`, `arch` is `amd64` or `arm64`) and `checksums.txt`. Verify the archive with `shasum -a 256 -c checksums.txt --ignore-missing` on macOS or `sha256sum -c checksums.txt --ignore-missing` on Linux. Then unpack it and put `pr-relay` on your PATH. On macOS, also see the quarantine note under [Troubleshooting](#troubleshooting).
 
-   Updates arrive later in that pane as lines starting with `[pr-relay]`.
+**Install only one copy.** If two different `pr-relay` binaries are on one machine, the daemon keeps restarting as one version and then the other.
+
+**Why restart herdr.** The herdr server inherits PATH from the shell that launched it, and the plugin and your agents can only find `pr-relay` on that PATH.
+
+**The plugin.** Its startup hook runs `pr-relay daemon --ensure` when herdr starts, so the daemon is running before any agent needs it. You can skip the plugin, because any `pr-relay` command also starts the daemon on demand.
+
+**The skill.** `pr-relay skill install` writes `~/.agents/skills/pr-relay/SKILL.md`. It also writes `~/.claude/skills/pr-relay/SKILL.md` when `~/.claude` exists. Use `--dir DIR` to write `DIR/pr-relay/SKILL.md` instead. Some agents read an instructions file rather than skills. For them, `pr-relay skill` prints the same text, which you can paste into `AGENTS.md` or `CLAUDE.md`. Agents that load skills only at startup need a restart after you install the skill.
 
 ## Commands
 
