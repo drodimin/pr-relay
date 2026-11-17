@@ -12,10 +12,14 @@ An agent runs `pr-relay sub https://github.com/owner/repo/pull/123` once, return
 
 ### Validated
 
-- [x] Single local daemon per machine with one GitHub poller; subscriptions deduplicated per PR (N agents on one PR = one poll) — Validated in Phase 4: Daemon, Control Protocol & CLI (end-to-end tests against fakes; real-pane UAT pending)
-- [x] `pr-relay sub <PR link> [--events ...] [--pane ID]` returns immediately; the pane is auto-detected from the herdr environment; only single-PR links are accepted (no whole-repo subscriptions) — Validated in Phase 4: Daemon, Control Protocol & CLI (end-to-end tests against fakes; real-pane UAT pending)
-- [x] `pr-relay unsub` and `pr-relay ls` (list subscriptions) — Validated in Phase 4: Daemon, Control Protocol & CLI (end-to-end tests against fakes; real-pane UAT pending)
-- [x] CLI auto-starts the daemon if it isn't running — Validated in Phase 4: Daemon, Control Protocol & CLI (end-to-end tests against fakes; real-pane UAT pending)
+- [x] Single local daemon per machine with one GitHub poller; subscriptions deduplicated per PR (N agents on one PR = one poll) — Validated in Phase 4: Daemon, Control Protocol & CLI (end-to-end tests against fakes; real herdr/GitHub UAT passed in Phase 5)
+- [x] `pr-relay sub <PR link> [--events ...] [--pane ID]` returns immediately; the pane is auto-detected from the herdr environment; only single-PR links are accepted (no whole-repo subscriptions) — Validated in Phase 4: Daemon, Control Protocol & CLI (end-to-end tests against fakes; real herdr/GitHub UAT passed in Phase 5)
+- [x] `pr-relay unsub` and `pr-relay ls` (list subscriptions) — Validated in Phase 4: Daemon, Control Protocol & CLI (end-to-end tests against fakes; real herdr/GitHub UAT passed in Phase 5)
+- [x] CLI auto-starts the daemon if it isn't running — Validated in Phase 4: Daemon, Control Protocol & CLI (end-to-end tests against fakes; real herdr/GitHub UAT passed in Phase 5)
+- [x] Ships as a herdr plugin (`herdr-plugin.toml` with `[[startup]]` launching the daemon) — Validated in Phase 5: startup hook proven on a real herdr restart; status/list actions open popup panes (herdr has no plugin menu)
+- [x] Ships an agent-facing skill / CLAUDE.md / AGENTS.md snippet telling agents to subscribe instead of polling — Validated in Phase 5: embedded SKILL.md, `pr-relay skill` / `skill install` (~/.agents and ~/.claude); a fresh agent answered from it
+- [x] Public-ready install (single binary; GitHub releases / `go install`) and README — Validated in Phase 5: v0.1.0 released 2026-11-17 with checksums; MIT-0 license; Homebrew dropped for v0.1.0 (user decision 2026-11-07)
+- [x] Works on macOS and Linux — Validated in Phase 5: CI tests on both; static darwin/linux amd64+arm64 release builds (real runtime UAT on macOS only)
 
 ### Active
 
@@ -28,11 +32,7 @@ An agent runs `pr-relay sub https://github.com/owner/repo/pull/123` once, return
 - [ ] Auto-cleanup: drop subscriptions when the PR is merged/closed or the pane closes (`pane.closed`)
 - [ ] Uses existing `gh` auth (no separate token setup)
 - [ ] Efficient polling: batched GraphQL and/or REST with ETags (304s), adaptive intervals (fast while CI pending, slow when settled), backoff on low rate-limit budget
-- [ ] Ships as a herdr plugin (`herdr-plugin.toml` with `[[startup]]` launching the daemon)
-- [ ] Ships an agent-facing skill / CLAUDE.md / AGENTS.md snippet telling agents to subscribe instead of polling
 - [ ] Optional `pane.report_metadata` to show PR state in herdr sidebar
-- [ ] Public-ready install (single binary; e.g. Homebrew tap / GitHub releases / `go install`) and README
-- [ ] Works on macOS and Linux
 
 ### Out of Scope
 
@@ -89,4 +89,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-11-05 after Phase 4 (single self-managing daemon with a version-gated control protocol, auto-start, and the sub/unsub/keep/poll/ls/status/reset CLI with check-in, expiry and removal on merge/close; all 5 success criteria proven end to end against fakes. Real herdr/GitHub UAT and code-review criticals CR-01..03 still open)*
+*Last updated: 2026-11-17 after Phase 5 (v0.1.0 published: GoReleaser release + go install, herdr plugin with startup hook and popup panes, embedded agent skill, README + docs drift test, MIT-0; Phase 4 criticals CR-01..03 fixed; real herdr/GitHub UAT passed. Follow-ups: F1-F3, review WR-01)*
