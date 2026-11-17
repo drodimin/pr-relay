@@ -57,3 +57,14 @@ None. All four tests passed.
 
 - **F1:** `pr-relay sub <url> --pane OTHER` prints "updates arrive in this pane" even when the target is another pane. The confirmation text should name the target pane when `--pane` differs from `$HERDR_PANE_ID`. Delivery itself went to the correct pane.
 - **F2:** After auth succeeds, `pr-relay status` shows `auth: ok (gh)`. The UAT expected the authenticated login, as in `auth: ok (<login>, gh)`. Auth works. Only the display differs from what the UAT expected.
+
+## Post-release (automated, 05-12 Task 2) — 2026-11-17
+
+- First push of main (494a986): CI lint failed (62 golangci-lint v2.15.0 issues never run locally). Tag held. Fixed in quick task 261116-qss (795ade6, 731e224); local lint 0 issues, race tests green.
+- Push main 494a986..230e75d: CI run 43987742829 — all jobs success (lint, 4x test, goreleaser).
+- Tag v0.1.0 (annotated, on 230e75d) pushed; release workflow run 43988046368 success.
+- Release https://github.com/drodimin/pr-relay/releases/tag/v0.1.0 — not draft, not prerelease. Assets: checksums.txt + pr-relay_0.1.0_{darwin,linux}_{amd64,arm64}.tar.gz (4 archives).
+- `shasum -a 256 -c checksums.txt`: darwin_arm64 OK, linux_amd64 OK. Archives contain LICENSE, README.md, pr-relay.
+- Downloaded darwin arm64 binary: `pr-relay v0.1.0`.
+- `go install github.com/drodimin/pr-relay/cmd/pr-relay@v0.1.0` (proxy download): `pr-relay v0.1.0`.
+- Homebrew cask checks: N/A (Homebrew dropped for v0.1.0, user decision 2026-11-07).
